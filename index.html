@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#f4f6fa;--panel:#ffffff;--panel-2:#eef1f6;--line:#d4dae3;--line-2:#bcc5d2;
-    --text:#141821;--muted:#5e6877;--accent:#e0186f;--empty:#e9edf3;
+    --text:#141821;--muted:#5e6877;--accent:#1f6fe0;--empty:#e9edf3;
     --ok:#1f9d57;--bad:#cc3b3b;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -31,7 +31,7 @@
   .right button.active{background:var(--accent);border-color:var(--accent);color:#fff}
   #btn-returns{position:relative;border-color:var(--accent);color:var(--accent);font-weight:700}
   #btn-returns.has{background:var(--accent);color:#fff;animation:pulse 1.5s infinite}
-  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(224,24,111,.4)}50%{box-shadow:0 0 0 6px rgba(224,24,111,0)}}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(31,111,224,.4)}50%{box-shadow:0 0 0 6px rgba(31,111,224,0)}}
   .returns-panel{position:fixed;top:64px;right:18px;width:340px;max-height:70vh;overflow:auto;
     background:var(--panel);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 12px 40px rgba(20,24,33,.18);
     z-index:60;display:none;padding:14px}
