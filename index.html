@@ -287,13 +287,12 @@ if(location.hash==='#tv')btnTv.onclick();
 async function persist(id, data){
   if(!sb){toast('No connection');return;}
   try{
-    if(data){
-      const { error } = await sb.from(TABLE).upsert({ hole:id, reg:data.reg, make:data.make, model:data.model, updated_at:new Date().toISOString() });
-      if(error)throw error;
-    } else {
-      const { error } = await sb.from(TABLE).delete().eq('hole', id);
-      if(error)throw error;
-    }
+    // Always upsert (never delete) so realtime fires reliably for every change.
+    const row = data
+      ? { hole:id, reg:data.reg, make:data.make, model:data.model, updated_at:new Date().toISOString() }
+      : { hole:id, reg:'', make:'', model:'', updated_at:new Date().toISOString() };
+    const { error } = await sb.from(TABLE).upsert(row);
+    if(error)throw error;
     toast('Saved');
   }catch(e){toast('Save failed');console.error(e);}
 }
@@ -303,7 +302,9 @@ async function loadAll(){
     const { data, error } = await sb.from(TABLE).select('*');
     if(error)throw error;
     state={};
-    (data||[]).forEach(r=>{state[r.hole]={reg:r.reg,make:r.make,model:r.model};});
+    (data||[]).forEach(r=>{
+      if(r.reg||r.make||r.model){state[r.hole]={reg:r.reg,make:r.make,model:r.model};}
+    });
     render();
     setStatus('Live','live');
   }catch(e){setStatus('Load error','err');console.error(e);}
@@ -315,13 +316,18 @@ function subscribe(){
       if(payload.eventType==='DELETE'){
         const oldRow=payload.old||{};
         if(oldRow.hole){delete state[oldRow.hole];render();}
-        else {loadAll();return;}  // fallback if key not provided
+        else {loadAll();return;}
         setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
         return;
       }
       const r=payload.new;
       if(!r||!r.hole)return;
-      state[r.hole]={reg:r.reg,make:r.make,model:r.model};
+      // Treat a blanked row as empty so the cell clears live.
+      if(r.reg||r.make||r.model){
+        state[r.hole]={reg:r.reg,make:r.make,model:r.model};
+      } else {
+        delete state[r.hole];
+      }
       render();
       setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
     })
