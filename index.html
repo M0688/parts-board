@@ -29,6 +29,23 @@
     border:1px solid var(--line-2);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
   .right button:hover{color:var(--text);border-color:var(--accent)}
   .right button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  #btn-returns{position:relative;border-color:var(--accent);color:var(--accent);font-weight:700}
+  #btn-returns.has{background:var(--accent);color:#fff;animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(224,24,111,.4)}50%{box-shadow:0 0 0 6px rgba(224,24,111,0)}}
+  .returns-panel{position:fixed;top:64px;right:18px;width:340px;max-height:70vh;overflow:auto;
+    background:var(--panel);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 12px 40px rgba(20,24,33,.18);
+    z-index:60;display:none;padding:14px}
+  .returns-panel.show{display:block}
+  .returns-panel .rp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .returns-panel .rp-head button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:16px}
+  .returns-panel .ritem{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px}
+  .returns-panel .ritem .rt{font-size:14px;color:var(--text);margin-bottom:6px}
+  .returns-panel .ritem .rt b{color:var(--accent)}
+  .returns-panel .ritem .rmeta{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .returns-panel .ritem button{font:inherit;font-size:13px;padding:6px 12px;border-radius:7px;cursor:pointer;
+    border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);font-weight:600}
+  .returns-panel .ritem button:hover{border-color:var(--accent)}
+  .returns-panel .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:14px}
 
   .stage{padding:22px;max-width:1500px;margin:0 auto}
   .units{display:flex;flex-direction:column;gap:22px}
@@ -48,10 +65,20 @@
   .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word}
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
-  .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:3px}
-  .hole .part{font-size:14px;color:var(--text);line-height:1.25}
+  .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+  .hole .part{font-size:14px;color:var(--text);line-height:1.25;display:flex;align-items:center;gap:7px}
+  .hole .part .ptext{flex:1}
   .hole .part .q{color:var(--accent);font-weight:700}
+  .hole .part.done .ptext{text-decoration:line-through;color:var(--muted)}
+  .hole .part .pcheck{width:20px;height:20px;flex:none;cursor:pointer;accent-color:var(--accent)}
+  .hole .part .pbtn{flex:none;font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;
+    cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent);font-weight:600}
+  .hole .part .pbtn:hover{background:var(--accent);color:#fff}
+  .hole .collect-btn{margin-top:6px;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;
+    border-radius:7px;cursor:pointer;border:none;background:var(--accent);color:#fff;align-self:flex-start}
+  .hole .collect-btn:hover{filter:brightness(1.08)}
   body.tv .hole .part{font-size:17px}
+  body.tv .hole .part .pcheck{width:24px;height:24px}
   .hole.tall{min-height:200px}
   .hole.wide{min-height:130px}
   body.admin .hole{cursor:pointer}
@@ -132,12 +159,21 @@
     </div>
   </div>
   <div class="right">
+    <button id="btn-returns" title="Pending returns" style="display:none">🔔 <span id="returns-count">0</span></button>
     <div class="mode-btns" style="display:flex;gap:8px">
       <button id="btn-admin">Admin</button>
       <button id="btn-tv" class="active">TV display</button>
     </div>
     <button id="btn-full" title="Fullscreen">⛶</button>
   </div>
+</div>
+
+<div class="returns-panel" id="returns-panel">
+  <div class="rp-head">
+    <strong>Parts to return to supplier</strong>
+    <button id="rp-close">✕</button>
+  </div>
+  <div id="returns-list"></div>
 </div>
 
 <div class="stage" id="stage">
@@ -214,11 +250,15 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ============================================================
+   1) PASTE YOUR TWO SUPABASE VALUES HERE
+   ============================================================ */
 const SUPABASE_URL = "https://zdpvgauiqrelpwmppqmv.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkcHZnYXVpcXJlbHB3bXBwcW12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTkxMDUsImV4cCI6MjA5NzI5NTEwNX0.VMQSzIl2PQsSJWyQkKT694CXHIMhianFgNx-2SqOlC8";
 
 /* Admin password — change this to whatever you want */
 const ADMIN_PASSWORD = "1911";
+/* ============================================================ */
 
 const TABLE = 'holes';
 let state = {};
@@ -247,28 +287,41 @@ function render(){
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
       let partsHtml='';
       if(parts.length){
-        partsHtml='<div class="parts">'+parts.map(p=>
-          '<div class="part"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</div>'
-        ).join('')+'</div>';
+        const rows = parts.map((p,i)=>{
+          const collected = p.status==='collected';
+          const check = collected ? '' :
+            '<input type="checkbox" class="pcheck" data-hole="'+id+'" data-i="'+i+'"'+(p.checked?' checked':'')+'>';
+          const ret = collected ?
+            '<button class="pbtn ret" data-hole="'+id+'" data-i="'+i+'">Return</button>' : '';
+          return '<div class="part'+(collected?' done':'')+'">'+check+
+            '<span class="ptext"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</span>'+
+            ret+'</div>';
+        }).join('');
+        const anyUncollected = parts.some(p=>p.status!=='collected');
+        const collectBtn = anyUncollected ?
+          '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
+        partsHtml='<div class="parts">'+rows+collectBtn+'</div>';
       }
       el.innerHTML='<span class="tag">'+id+'</span><div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
         partsHtml+
-        '<span class="edit-hint">Tap to edit</span>';
+        '<span class="edit-hint">Tap reg to edit</span>';
     } else {
       el.classList.add('empty');
       el.innerHTML='<span class="tag">'+id+'</span><div class="reg">Empty</div>'+
         '<span class="edit-hint">Tap to fill</span>';
     }
   });
+  wireCellControls();
 }
 
 let toastTimer;
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1600);}
 
+/* ---- modal ---- */
 const overlay=document.getElementById('overlay');
-let editParts=[];
+let editParts=[];  // working copy of parts while dialog open
 
 function renderEditParts(){
   const wrap=document.getElementById('parts-list');
@@ -309,12 +362,47 @@ function openHole(id){
   overlay.classList.add('show');document.getElementById('in-reg').focus();
 }
 function closeHole(){overlay.classList.remove('show');activeHole=null;}
-holeEls.forEach(el=>el.addEventListener('click',()=>openHole(el.dataset.hole)));
+
+// Editing (admin) opens only when tapping the reg/empty area, not part controls.
+holeEls.forEach(el=>el.addEventListener('click',e=>{
+  if(e.target.closest('.pcheck,.pbtn,.collect-btn,.parts'))return;
+  openHole(el.dataset.hole);
+}));
+
+// Tech controls: work WITHOUT admin password (status changes only).
+function wireCellControls(){
+  document.querySelectorAll('.pcheck').forEach(cb=>cb.onchange=()=>{
+    const hole=cb.dataset.hole, i=parseInt(cb.dataset.i);
+    const d=state[hole]; if(!d||!d.parts[i])return;
+    d.parts[i].checked=cb.checked;  // local only, no save needed yet
+  });
+  document.querySelectorAll('.collect-btn').forEach(btn=>btn.onclick=async()=>{
+    const hole=btn.dataset.hole; const d=state[hole]; if(!d)return;
+    let any=false;
+    d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;any=true;} });
+    if(!any){toast('Tick parts first');return;}
+    render();
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+  });
+  document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=async()=>{
+    const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
+    const d=state[hole]; if(!d||!d.parts[i])return;
+    const part=d.parts[i];
+    // log a return request for admin
+    await requestReturn(hole, d.reg, part);
+    // put part back to on-shelf so it's no longer 'collected'
+    part.status='onshelf'; part.checked=false;
+    render();
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    toast('Return sent to admin');
+  });
+}
 document.getElementById('dlg-cancel').onclick=closeHole;
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
+  // include a part still typed but not yet "Added"
   const pendingDesc=document.getElementById('in-part-desc').value.trim();
   if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1});}
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
@@ -334,10 +422,11 @@ document.getElementById('dlg-clear').onclick=async()=>{
 document.getElementById('in-reg').addEventListener('keydown',e=>{
   if(e.key==='Enter')document.getElementById('dlg-save').click();});
 
+/* ---- mode + fullscreen ---- */
 const btnAdmin=document.getElementById('btn-admin'),btnTv=document.getElementById('btn-tv');
 let adminUnlocked=false;
 function enterAdmin(){document.body.classList.remove('tv');document.body.classList.add('admin');
-  btnAdmin.classList.add('active');btnTv.classList.remove('active');}
+  btnAdmin.classList.add('active');btnTv.classList.remove('active');renderReturns();render();}
 btnAdmin.onclick=()=>{
   if(document.body.classList.contains('admin'))return;
   if(!adminUnlocked){
@@ -349,18 +438,22 @@ btnAdmin.onclick=()=>{
   enterAdmin();
 };
 btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classList.add('tv');
-  btnTv.classList.add('active');btnAdmin.classList.remove('active');};
+  btnTv.classList.add('active');btnAdmin.classList.remove('active');
+  document.getElementById('returns-panel').classList.remove('show');renderReturns();render();};
 document.getElementById('btn-full').onclick=()=>{
   if(!document.fullscreenElement)document.documentElement.requestFullscreen();
   else document.exitFullscreen();};
 document.addEventListener('fullscreenchange',()=>{
   document.body.classList.toggle('fs', !!document.fullscreenElement);});
 
+/* remember mode + deep-link: index.html#tv opens straight into TV mode */
 if(location.hash==='#tv')btnTv.onclick();
 
+/* ---- Supabase ---- */
 async function persist(id, data){
   if(!sb){toast('No connection');return;}
   try{
+    // Always upsert (never delete) so realtime fires reliably for every change.
     const row = data
       ? { hole:id, reg:data.reg, make:data.make, model:data.model, parts:data.parts||[], updated_at:new Date().toISOString() }
       : { hole:id, reg:'', make:'', model:'', parts:[], updated_at:new Date().toISOString() };
@@ -369,6 +462,85 @@ async function persist(id, data){
     toast('Saved');
   }catch(e){toast('Save failed');console.error(e);}
 }
+
+/* ---- Returns (supplier) notifications ---- */
+let returns=[];
+
+async function requestReturn(hole, reg, part){
+  if(!sb)return;
+  try{
+    const { error } = await sb.from('returns').insert({
+      hole, reg:reg||'', part_desc:part.desc, qty:part.qty||1
+    });
+    if(error)throw error;
+  }catch(e){console.error(e);toast('Return failed');}
+}
+
+function renderReturns(){
+  const btn=document.getElementById('btn-returns');
+  const count=document.getElementById('returns-count');
+  const list=document.getElementById('returns-list');
+  count.textContent=returns.length;
+  const inAdmin=document.body.classList.contains('admin');
+  btn.style.display = inAdmin ? '' : 'none';
+  btn.classList.toggle('has', returns.length>0);
+  if(!returns.length){
+    list.innerHTML='<div class="empty-note">No pending returns.</div>';
+    return;
+  }
+  list.innerHTML=returns.map(r=>
+    '<div class="ritem"><div class="rt"><b>'+esc(String(r.qty||1))+'×</b> '+esc(r.part_desc)+'</div>'+
+    '<div class="rmeta">Hole '+esc(r.hole)+(r.reg?' · '+esc(r.reg):'')+
+      ' · '+new Date(r.created_at).toLocaleString()+'</div>'+
+    '<button data-id="'+r.id+'">Mark processed</button></div>'
+  ).join('');
+  list.querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{
+    await clearReturn(b.dataset.id);
+  });
+}
+
+async function clearReturn(rid){
+  if(!sb)return;
+  try{
+    const { error } = await sb.from('returns').delete().eq('id', rid);
+    if(error)throw error;
+    returns=returns.filter(r=>r.id!==rid);
+    renderReturns();
+  }catch(e){console.error(e);toast('Could not clear');}
+}
+
+async function loadReturns(){
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('returns').select('*').order('created_at',{ascending:false});
+    if(error)throw error;
+    returns=data||[];
+    renderReturns();
+  }catch(e){console.error(e);}
+}
+
+function subscribeReturns(){
+  sb.channel('returns-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'returns'},payload=>{
+      if(payload.eventType==='INSERT'){
+        returns.unshift(payload.new);
+        if(document.body.classList.contains('admin'))toast('New return request');
+      } else if(payload.eventType==='DELETE'){
+        const oid=(payload.old||{}).id;
+        if(oid)returns=returns.filter(r=>r.id!==oid);
+        else {loadReturns();return;}
+      }
+      renderReturns();
+    })
+    .subscribe();
+}
+
+document.getElementById('btn-returns').onclick=()=>{
+  document.getElementById('returns-panel').classList.toggle('show');
+};
+document.getElementById('rp-close').onclick=()=>{
+  document.getElementById('returns-panel').classList.remove('show');
+};
 
 async function loadAll(){
   try{
@@ -396,6 +568,7 @@ function subscribe(){
       }
       const r=payload.new;
       if(!r||!r.hole)return;
+      // Treat a blanked row as empty so the cell clears live.
       const parts = Array.isArray(r.parts) ? r.parts : [];
       if(r.reg||r.make||r.model||parts.length){
         state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts};
@@ -420,6 +593,7 @@ function init(){
   }
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   loadAll().then(subscribe);
+  loadReturns().then(subscribeReturns);
 }
 init();
 </script>
