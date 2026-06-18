@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parts Location Board</title>
+<style>
+  :root{
+    --bg:#0f1115;--panel:#1a1d24;--panel-2:#222630;--line:#323845;--line-2:#414959;
+    --text:#f2f4f8;--muted:#9aa3b2;--accent:#ff3d8b;--empty:#161922;
+    --ok:#2ecc71;--bad:#e25555;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.3px}
+  .brand .dot{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+  .brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+  .brand small .conn{display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--muted);margin-right:6px;vertical-align:1px}
+  .brand small.live .conn{background:var(--ok)}
+  .brand small.err .conn{background:var(--bad)}
+  .right{display:flex;gap:8px;align-items:center}
+  .right button{font:inherit;font-size:14px;color:var(--muted);background:transparent;
+    border:1px solid var(--line-2);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
+  .right button:hover{color:var(--text);border-color:var(--accent)}
+  .right button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .stage{padding:22px;max-width:1500px;margin:0 auto}
+  .units{display:flex;flex-direction:column;gap:22px}
+  .unit-label{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px 2px}
+  .top-unit{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .top-mid{display:grid;grid-template-rows:1fr 1fr;gap:14px}
+  .bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .cabinet{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel);
+    display:grid;grid-template-rows:auto 1fr 1fr;gap:14px}
+  .cab-small{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+  .hole{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--empty);
+    min-height:120px;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:6px;
+    transition:.15s;overflow:hidden}
+  .hole.filled{background:var(--panel-2);border-color:var(--line-2)}
+  .hole .tag{position:absolute;top:10px;right:12px;font-size:11px;letter-spacing:.5px;color:var(--muted)}
+  .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word}
+  .hole.empty .reg{color:#3a4150;font-size:20px;font-weight:500}
+  .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
+  .hole.tall{min-height:200px}
+  .hole.wide{min-height:130px}
+  body.admin .hole{cursor:pointer}
+  body.admin .hole:hover{border-color:var(--accent);background:var(--panel-2)}
+  .edit-hint{position:absolute;bottom:10px;right:12px;font-size:11px;color:var(--accent);opacity:0;transition:.15s}
+  body.admin .hole:hover .edit-hint{opacity:1}
+  body.tv .right .mode-btns{display:none}
+  body.tv .hole .reg{font-size:38px}
+  body.tv .hole .mm{font-size:18px}
+  body.tv .edit-hint{display:none}
+  body.fs .topbar{display:none}
+  body.fs .stage{padding:14px}
+
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+    align-items:center;justify-content:center;z-index:50;padding:20px}
+  .overlay.show{display:flex}
+  .dialog{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;width:100%;max-width:420px;padding:24px}
+  .dialog h3{font-size:18px;margin-bottom:4px}
+  .dialog p.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase}
+  .field input{width:100%;font:inherit;font-size:16px;padding:11px 13px;border-radius:9px;
+    background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .field input.reg-input{text-transform:uppercase;font-weight:700;letter-spacing:1px}
+  .dialog .actions{display:flex;gap:10px;margin-top:8px}
+  .dialog button{font:inherit;font-size:14px;padding:11px 16px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line-2);background:transparent;color:var(--text);flex:1;transition:.15s}
+  .dialog button.save{background:var(--accent);border-color:var(--accent);color:#fff}
+  .dialog button.clear{color:var(--muted)}
+  .dialog button.clear:hover{border-color:#a33;color:#f88}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);
+    border:1px solid var(--line-2);color:var(--muted);padding:8px 16px;border-radius:20px;
+    font-size:13px;opacity:0;transition:.2s;pointer-events:none}
+  .toast.show{opacity:1}
+
+  .setup{max-width:640px;margin:60px auto;padding:28px;background:var(--panel);
+    border:1px solid var(--line-2);border-radius:14px;display:none}
+  .setup.show{display:block}
+  .setup h2{font-size:20px;margin-bottom:10px}
+  .setup p{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:10px}
+  .setup code{background:var(--bg);padding:2px 6px;border-radius:5px;color:var(--accent);font-size:13px}
+</style>
+</head>
+<body class="tv">
+
+<div class="setup" id="setup">
+  <h2>Almost there — add your Supabase keys</h2>
+  <p>Open <code>index.html</code> and replace the two placeholders near the bottom of the file:</p>
+  <p><code>SUPABASE_URL</code> — your Project URL<br>
+     <code>SUPABASE_ANON_KEY</code> — your anon public key</p>
+  <p>Both are in your Supabase dashboard under <code>Project Settings → API</code>. Save, redeploy, and this message disappears.</p>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <div>Parts Location Board
+      <small id="status"><span class="conn"></span>Connecting…</small>
+    </div>
+  </div>
+  <div class="right">
+    <div class="mode-btns" style="display:flex;gap:8px">
+      <button id="btn-admin">Admin</button>
+      <button id="btn-tv" class="active">TV display</button>
+    </div>
+    <button id="btn-full" title="Fullscreen">⛶</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="units">
+    <div>
+      <p class="unit-label">Top unit</p>
+      <div class="top-unit">
+        <div data-hole="T1" class="hole tall"></div>
+        <div class="top-mid">
+          <div data-hole="T2" class="hole"></div>
+          <div data-hole="T3" class="hole"></div>
+        </div>
+        <div data-hole="T4" class="hole tall"></div>
+      </div>
+    </div>
+    <div>
+      <p class="unit-label">Bottom units</p>
+      <div class="bottom-row">
+        <div class="cabinet">
+          <div data-hole="L0" class="hole wide"></div>
+          <div class="cab-small">
+            <div data-hole="L1" class="hole"></div>
+            <div data-hole="L2" class="hole"></div>
+          </div>
+          <div class="cab-small">
+            <div data-hole="L3" class="hole"></div>
+            <div data-hole="L4" class="hole"></div>
+          </div>
+        </div>
+        <div class="cabinet">
+          <div data-hole="R0" class="hole wide"></div>
+          <div class="cab-small">
+            <div data-hole="R1" class="hole"></div>
+            <div data-hole="R2" class="hole"></div>
+          </div>
+          <div class="cab-small">
+            <div data-hole="R3" class="hole"></div>
+            <div data-hole="R4" class="hole"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="dialog">
+    <h3 id="dlg-title">Hole</h3>
+    <p class="sub">Set the vehicle stored in this hole.</p>
+    <div class="field"><label>Registration</label>
+      <input id="in-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
+    <div class="field"><label>Make</label>
+      <input id="in-make" placeholder="Citroen" autocomplete="off"></div>
+    <div class="field"><label>Model</label>
+      <input id="in-model" placeholder="C3" autocomplete="off"></div>
+    <div class="actions">
+      <button class="clear" id="dlg-clear">Empty hole</button>
+      <button class="cancel" id="dlg-cancel">Cancel</button>
+      <button class="save" id="dlg-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://zdpvgauiqrelpwmppqmv.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkcHZnYXVpcXJlbHB3bXBwcW12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTkxMDUsImV4cCI6MjA5NzI5NTEwNX0.VMQSzIl2PQsSJWyQkKT694CXHIMhianFgNx-2SqOlC8";
+
+/* Admin password — change this to whatever you want */
+const ADMIN_PASSWORD = "1911";
+
+const TABLE = 'holes';
+let state = {};
+let activeHole = null;
+let sb = null;
+
+const holeEls = Array.from(document.querySelectorAll('[data-hole]'));
+const statusEl = document.getElementById('status');
+
+function setStatus(text, cls){
+  statusEl.className = cls || '';
+  statusEl.innerHTML = '<span class="conn"></span>'+text;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function render(){
+  holeEls.forEach(el=>{
+    const id = el.dataset.hole;
+    const d = state[id];
+    el.classList.remove('filled','empty');
+    if(d && (d.reg||d.make||d.model)){
+      el.classList.add('filled');
+      const big = d.reg || [d.make,d.model].filter(Boolean).join(' ');
+      const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
+      el.innerHTML='<span class="tag">'+id+'</span><div class="reg">'+esc(big)+'</div>'+
+        (small?'<div class="mm">'+esc(small)+'</div>':'')+
+        '<span class="edit-hint">Tap to edit</span>';
+    } else {
+      el.classList.add('empty');
+      el.innerHTML='<span class="tag">'+id+'</span><div class="reg">Empty</div>'+
+        '<span class="edit-hint">Tap to fill</span>';
+    }
+  });
+}
+
+let toastTimer;
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1600);}
+
+const overlay=document.getElementById('overlay');
+function openHole(id){
+  if(!document.body.classList.contains('admin'))return;
+  activeHole=id;const d=state[id]||{};
+  document.getElementById('dlg-title').textContent='Hole '+id;
+  document.getElementById('in-reg').value=d.reg||'';
+  document.getElementById('in-make').value=d.make||'';
+  document.getElementById('in-model').value=d.model||'';
+  overlay.classList.add('show');document.getElementById('in-reg').focus();
+}
+function closeHole(){overlay.classList.remove('show');activeHole=null;}
+holeEls.forEach(el=>el.addEventListener('click',()=>openHole(el.dataset.hole)));
+document.getElementById('dlg-cancel').onclick=closeHole;
+overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
+
+document.getElementById('dlg-save').onclick=async()=>{
+  if(!activeHole)return;
+  const reg=document.getElementById('in-reg').value.trim().toUpperCase();
+  const make=document.getElementById('in-make').value.trim();
+  const model=document.getElementById('in-model').value.trim();
+  const id=activeHole;
+  if(reg||make||model){state[id]={reg,make,model};} else {delete state[id];}
+  render();closeHole();
+  await persist(id, (reg||make||model)?{reg,make,model}:null);
+};
+document.getElementById('dlg-clear').onclick=async()=>{
+  if(!activeHole)return;const id=activeHole;delete state[id];render();closeHole();
+  await persist(id,null);
+};
+document.getElementById('in-reg').addEventListener('keydown',e=>{
+  if(e.key==='Enter')document.getElementById('dlg-save').click();});
+
+const btnAdmin=document.getElementById('btn-admin'),btnTv=document.getElementById('btn-tv');
+let adminUnlocked=false;
+function enterAdmin(){document.body.classList.remove('tv');document.body.classList.add('admin');
+  btnAdmin.classList.add('active');btnTv.classList.remove('active');}
+btnAdmin.onclick=()=>{
+  if(document.body.classList.contains('admin'))return;
+  if(!adminUnlocked){
+    const pw=prompt('Enter admin password:');
+    if(pw===null)return;
+    if(pw!==ADMIN_PASSWORD){toast('Wrong password');return;}
+    adminUnlocked=true;
+  }
+  enterAdmin();
+};
+btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classList.add('tv');
+  btnTv.classList.add('active');btnAdmin.classList.remove('active');};
+document.getElementById('btn-full').onclick=()=>{
+  if(!document.fullscreenElement)document.documentElement.requestFullscreen();
+  else document.exitFullscreen();};
+document.addEventListener('fullscreenchange',()=>{
+  document.body.classList.toggle('fs', !!document.fullscreenElement);});
+
+if(location.hash==='#tv')btnTv.onclick();
+
+async function persist(id, data){
+  if(!sb){toast('No connection');return;}
+  try{
+    if(data){
+      const { error } = await sb.from(TABLE).upsert({ hole:id, reg:data.reg, make:data.make, model:data.model, updated_at:new Date().toISOString() });
+      if(error)throw error;
+    } else {
+      const { error } = await sb.from(TABLE).delete().eq('hole', id);
+      if(error)throw error;
+    }
+    toast('Saved');
+  }catch(e){toast('Save failed');console.error(e);}
+}
+
+async function loadAll(){
+  try{
+    const { data, error } = await sb.from(TABLE).select('*');
+    if(error)throw error;
+    state={};
+    (data||[]).forEach(r=>{state[r.hole]={reg:r.reg,make:r.make,model:r.model};});
+    render();
+    setStatus('Live','live');
+  }catch(e){setStatus('Load error','err');console.error(e);}
+}
+
+function subscribe(){
+  sb.channel('holes-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:TABLE},payload=>{
+      const r=payload.new||payload.old;
+      if(!r||!r.hole)return;
+      if(payload.eventType==='DELETE'){delete state[r.hole];}
+      else {state[r.hole]={reg:r.reg,make:r.make,model:r.model};}
+      render();
+      setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
+    })
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED')setStatus('Live','live');
+    });
+}
+
+function init(){
+  render();
+  if(SUPABASE_URL.startsWith('YOUR_')||SUPABASE_ANON_KEY.startsWith('YOUR_')){
+    document.getElementById('setup').classList.add('show');
+    document.getElementById('stage').style.display='none';
+    setStatus('Not configured','err');
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadAll().then(subscribe);
+}
+init();
+</script>
+</body>
+</html>
