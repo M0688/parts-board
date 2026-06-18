@@ -41,13 +41,17 @@
   .cab-small{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
   .hole{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--empty);
-    min-height:120px;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:6px;
-    transition:.15s;overflow:hidden}
+    min-height:120px;padding:16px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px;
+    transition:.15s;overflow:auto}
   .hole.filled{background:var(--panel-2);border-color:var(--line-2)}
   .hole .tag{position:absolute;top:10px;right:12px;font-size:11px;letter-spacing:.5px;color:var(--muted)}
   .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word}
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
+  .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:3px}
+  .hole .part{font-size:14px;color:var(--text);line-height:1.25}
+  .hole .part .q{color:var(--accent);font-weight:700}
+  body.tv .hole .part{font-size:17px}
   .hole.tall{min-height:200px}
   .hole.wide{min-height:130px}
   body.admin .hole{cursor:pointer}
@@ -73,6 +77,23 @@
     background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
   .field input:focus{outline:none;border-color:var(--accent)}
   .field input.reg-input{text-transform:uppercase;font-weight:700;letter-spacing:1px}
+  .parts-edit{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .parts-edit:empty{display:none}
+  .parts-edit .row{display:flex;align-items:center;gap:8px;background:var(--bg);
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
+  .parts-edit .row .q{color:var(--accent);font-weight:700;min-width:28px}
+  .parts-edit .row .d{flex:1}
+  .parts-edit .row .x{cursor:pointer;color:var(--muted);border:none;background:none;
+    font-size:16px;padding:0 4px;flex:none}
+  .parts-edit .row .x:hover{color:var(--bad)}
+  .parts-add{display:flex;gap:8px}
+  .parts-add input{flex:1;font:inherit;font-size:15px;padding:9px 11px;border-radius:8px;
+    background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
+  .parts-add input:focus{outline:none;border-color:var(--accent)}
+  .parts-add .qty-input{flex:none;width:64px}
+  .parts-add button{flex:none;font:inherit;font-size:14px;padding:9px 14px;border-radius:8px;
+    cursor:pointer;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text)}
+  .parts-add button:hover{border-color:var(--accent)}
   .dialog .actions{display:flex;gap:10px;margin-top:8px}
   .dialog button{font:inherit;font-size:14px;padding:11px 16px;border-radius:9px;cursor:pointer;
     border:1px solid var(--line-2);background:transparent;color:var(--text);flex:1;transition:.15s}
@@ -172,6 +193,15 @@
       <input id="in-make" placeholder="Citroen" autocomplete="off"></div>
     <div class="field"><label>Model</label>
       <input id="in-model" placeholder="C3" autocomplete="off"></div>
+    <div class="field">
+      <label>Parts in this hole</label>
+      <div id="parts-list" class="parts-edit"></div>
+      <div class="parts-add">
+        <input id="in-part-desc" placeholder="Part description" autocomplete="off">
+        <input id="in-part-qty" type="number" min="1" value="1" class="qty-input">
+        <button type="button" id="btn-add-part">Add</button>
+      </div>
+    </div>
     <div class="actions">
       <button class="clear" id="dlg-clear">Empty hole</button>
       <button class="cancel" id="dlg-cancel">Cancel</button>
@@ -209,12 +239,21 @@ function render(){
     const id = el.dataset.hole;
     const d = state[id];
     el.classList.remove('filled','empty');
-    if(d && (d.reg||d.make||d.model)){
+    const parts = (d && Array.isArray(d.parts)) ? d.parts.filter(p=>p&&p.desc) : [];
+    const hasContent = d && (d.reg||d.make||d.model||parts.length);
+    if(hasContent){
       el.classList.add('filled');
-      const big = d.reg || [d.make,d.model].filter(Boolean).join(' ');
+      const big = d.reg || [d.make,d.model].filter(Boolean).join(' ') || '—';
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
+      let partsHtml='';
+      if(parts.length){
+        partsHtml='<div class="parts">'+parts.map(p=>
+          '<div class="part"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</div>'
+        ).join('')+'</div>';
+      }
       el.innerHTML='<span class="tag">'+id+'</span><div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
+        partsHtml+
         '<span class="edit-hint">Tap to edit</span>';
     } else {
       el.classList.add('empty');
@@ -229,6 +268,33 @@ function toast(t){const el=document.getElementById('toast');el.textContent=t;el.
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1600);}
 
 const overlay=document.getElementById('overlay');
+let editParts=[];
+
+function renderEditParts(){
+  const wrap=document.getElementById('parts-list');
+  wrap.innerHTML=editParts.map((p,i)=>
+    '<div class="row"><span class="q">'+esc(String(p.qty||1))+'×</span>'+
+    '<span class="d">'+esc(p.desc)+'</span>'+
+    '<button type="button" class="x" data-i="'+i+'">✕</button></div>'
+  ).join('');
+  wrap.querySelectorAll('.x').forEach(b=>b.onclick=()=>{
+    editParts.splice(parseInt(b.dataset.i),1);renderEditParts();});
+}
+function addPartFromInputs(){
+  const descEl=document.getElementById('in-part-desc');
+  const qtyEl=document.getElementById('in-part-qty');
+  const desc=descEl.value.trim();
+  const qty=parseInt(qtyEl.value)||1;
+  if(!desc)return;
+  editParts.push({desc,qty});
+  descEl.value='';qtyEl.value='1';renderEditParts();descEl.focus();
+}
+document.getElementById('btn-add-part').onclick=addPartFromInputs;
+document.getElementById('in-part-desc').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();addPartFromInputs();}});
+document.getElementById('in-part-qty').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();addPartFromInputs();}});
+
 function openHole(id){
   if(!document.body.classList.contains('admin'))return;
   activeHole=id;const d=state[id]||{};
@@ -236,6 +302,10 @@ function openHole(id){
   document.getElementById('in-reg').value=d.reg||'';
   document.getElementById('in-make').value=d.make||'';
   document.getElementById('in-model').value=d.model||'';
+  editParts = Array.isArray(d.parts) ? d.parts.map(p=>({desc:p.desc,qty:p.qty||1})) : [];
+  document.getElementById('in-part-desc').value='';
+  document.getElementById('in-part-qty').value='1';
+  renderEditParts();
   overlay.classList.add('show');document.getElementById('in-reg').focus();
 }
 function closeHole(){overlay.classList.remove('show');activeHole=null;}
@@ -245,13 +315,17 @@ overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
+  const pendingDesc=document.getElementById('in-part-desc').value.trim();
+  if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1});}
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
   const make=document.getElementById('in-make').value.trim();
   const model=document.getElementById('in-model').value.trim();
+  const parts=editParts.slice();
   const id=activeHole;
-  if(reg||make||model){state[id]={reg,make,model};} else {delete state[id];}
+  const hasContent = reg||make||model||parts.length;
+  if(hasContent){state[id]={reg,make,model,parts};} else {delete state[id];}
   render();closeHole();
-  await persist(id, (reg||make||model)?{reg,make,model}:null);
+  await persist(id, hasContent?{reg,make,model,parts}:null);
 };
 document.getElementById('dlg-clear').onclick=async()=>{
   if(!activeHole)return;const id=activeHole;delete state[id];render();closeHole();
@@ -287,10 +361,9 @@ if(location.hash==='#tv')btnTv.onclick();
 async function persist(id, data){
   if(!sb){toast('No connection');return;}
   try{
-    // Always upsert (never delete) so realtime fires reliably for every change.
     const row = data
-      ? { hole:id, reg:data.reg, make:data.make, model:data.model, updated_at:new Date().toISOString() }
-      : { hole:id, reg:'', make:'', model:'', updated_at:new Date().toISOString() };
+      ? { hole:id, reg:data.reg, make:data.make, model:data.model, parts:data.parts||[], updated_at:new Date().toISOString() }
+      : { hole:id, reg:'', make:'', model:'', parts:[], updated_at:new Date().toISOString() };
     const { error } = await sb.from(TABLE).upsert(row);
     if(error)throw error;
     toast('Saved');
@@ -303,7 +376,8 @@ async function loadAll(){
     if(error)throw error;
     state={};
     (data||[]).forEach(r=>{
-      if(r.reg||r.make||r.model){state[r.hole]={reg:r.reg,make:r.make,model:r.model};}
+      const parts = Array.isArray(r.parts) ? r.parts : [];
+      if(r.reg||r.make||r.model||parts.length){state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts};}
     });
     render();
     setStatus('Live','live');
@@ -322,9 +396,9 @@ function subscribe(){
       }
       const r=payload.new;
       if(!r||!r.hole)return;
-      // Treat a blanked row as empty so the cell clears live.
-      if(r.reg||r.make||r.model){
-        state[r.hole]={reg:r.reg,make:r.make,model:r.model};
+      const parts = Array.isArray(r.parts) ? r.parts : [];
+      if(r.reg||r.make||r.model||parts.length){
+        state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts};
       } else {
         delete state[r.hole];
       }
