@@ -6,9 +6,9 @@
 <title>Parts Location Board</title>
 <style>
   :root{
-    --bg:#0f1115;--panel:#1a1d24;--panel-2:#222630;--line:#323845;--line-2:#414959;
-    --text:#f2f4f8;--muted:#9aa3b2;--accent:#ff3d8b;--empty:#161922;
-    --ok:#2ecc71;--bad:#e25555;
+    --bg:#f4f6fa;--panel:#ffffff;--panel-2:#eef1f6;--line:#d4dae3;--line-2:#bcc5d2;
+    --text:#141821;--muted:#5e6877;--accent:#e0186f;--empty:#e9edf3;
+    --ok:#1f9d57;--bad:#cc3b3b;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -46,7 +46,7 @@
   .hole.filled{background:var(--panel-2);border-color:var(--line-2)}
   .hole .tag{position:absolute;top:10px;right:12px;font-size:11px;letter-spacing:.5px;color:var(--muted)}
   .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word}
-  .hole.empty .reg{color:#3a4150;font-size:20px;font-weight:500}
+  .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
   .hole.tall{min-height:200px}
   .hole.wide{min-height:130px}
@@ -61,7 +61,7 @@
   body.fs .topbar{display:none}
   body.fs .stage{padding:14px}
 
-  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+  .overlay{position:fixed;inset:0;background:rgba(20,24,33,.45);display:none;
     align-items:center;justify-content:center;z-index:50;padding:20px}
   .overlay.show{display:flex}
   .dialog{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;width:100%;max-width:420px;padding:24px}
@@ -312,10 +312,16 @@ async function loadAll(){
 function subscribe(){
   sb.channel('holes-changes')
     .on('postgres_changes',{event:'*',schema:'public',table:TABLE},payload=>{
-      const r=payload.new||payload.old;
+      if(payload.eventType==='DELETE'){
+        const oldRow=payload.old||{};
+        if(oldRow.hole){delete state[oldRow.hole];render();}
+        else {loadAll();return;}  // fallback if key not provided
+        setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
+        return;
+      }
+      const r=payload.new;
       if(!r||!r.hole)return;
-      if(payload.eventType==='DELETE'){delete state[r.hole];}
-      else {state[r.hole]={reg:r.reg,make:r.make,model:r.model};}
+      state[r.hole]={reg:r.reg,make:r.make,model:r.model};
       render();
       setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
     })
