@@ -48,6 +48,12 @@
   .returns-panel .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:14px}
 
   .stage{padding:22px;max-width:1500px;margin:0 auto}
+  .layout-row{display:grid;grid-template-columns:minmax(220px,1fr) 3fr;gap:22px;align-items:start}
+  .shelf-unit-wrap{display:flex;flex-direction:column}
+  .shelf-unit{display:grid;grid-template-rows:repeat(5,1fr);gap:14px;
+    border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+  .shelf-unit .hole.shelf{min-height:96px}
+  @media(max-width:760px){.layout-row{grid-template-columns:1fr}}
   .units{display:flex;flex-direction:column;gap:22px}
   .unit-label{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px 2px}
   .top-unit{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
@@ -177,41 +183,53 @@
 </div>
 
 <div class="stage" id="stage">
-  <div class="units">
-    <div>
-      <p class="unit-label">Top unit</p>
-      <div class="top-unit">
-        <div data-hole="T1" class="hole tall"></div>
-        <div class="top-mid">
-          <div data-hole="T2" class="hole"></div>
-          <div data-hole="T3" class="hole"></div>
-        </div>
-        <div data-hole="T4" class="hole tall"></div>
+  <div class="layout-row">
+    <div class="shelf-unit-wrap">
+      <p class="unit-label">Shelf unit</p>
+      <div class="shelf-unit">
+        <div data-hole="S1" class="hole shelf"></div>
+        <div data-hole="S2" class="hole shelf"></div>
+        <div data-hole="S3" class="hole shelf"></div>
+        <div data-hole="S4" class="hole shelf"></div>
+        <div data-hole="S5" class="hole shelf"></div>
       </div>
     </div>
-    <div>
-      <p class="unit-label">Bottom units</p>
-      <div class="bottom-row">
-        <div class="cabinet">
-          <div data-hole="L0" class="hole wide"></div>
-          <div class="cab-small">
-            <div data-hole="L1" class="hole"></div>
-            <div data-hole="L2" class="hole"></div>
+    <div class="units">
+      <div>
+        <p class="unit-label">Top unit</p>
+        <div class="top-unit">
+          <div data-hole="T1" class="hole tall"></div>
+          <div class="top-mid">
+            <div data-hole="T2" class="hole"></div>
+            <div data-hole="T3" class="hole"></div>
           </div>
-          <div class="cab-small">
-            <div data-hole="L3" class="hole"></div>
-            <div data-hole="L4" class="hole"></div>
-          </div>
+          <div data-hole="T4" class="hole tall"></div>
         </div>
-        <div class="cabinet">
-          <div data-hole="R0" class="hole wide"></div>
-          <div class="cab-small">
-            <div data-hole="R1" class="hole"></div>
-            <div data-hole="R2" class="hole"></div>
+      </div>
+      <div>
+        <p class="unit-label">Bottom units</p>
+        <div class="bottom-row">
+          <div class="cabinet">
+            <div data-hole="L0" class="hole wide"></div>
+            <div class="cab-small">
+              <div data-hole="L1" class="hole"></div>
+              <div data-hole="L2" class="hole"></div>
+            </div>
+            <div class="cab-small">
+              <div data-hole="L3" class="hole"></div>
+              <div data-hole="L4" class="hole"></div>
+            </div>
           </div>
-          <div class="cab-small">
-            <div data-hole="R3" class="hole"></div>
-            <div data-hole="R4" class="hole"></div>
+          <div class="cabinet">
+            <div data-hole="R0" class="hole wide"></div>
+            <div class="cab-small">
+              <div data-hole="R1" class="hole"></div>
+              <div data-hole="R2" class="hole"></div>
+            </div>
+            <div class="cab-small">
+              <div data-hole="R3" class="hole"></div>
+              <div data-hole="R4" class="hole"></div>
+            </div>
           </div>
         </div>
       </div>
