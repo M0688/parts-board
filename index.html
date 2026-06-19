@@ -72,6 +72,10 @@
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
   .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+  .hole .parts-count{margin-top:8px;font-size:14px;font-weight:600;color:var(--accent);cursor:pointer}
+  body.tv .hole .parts-count{font-size:18px}
+  .hole.expanded{position:relative;z-index:40;box-shadow:0 14px 40px rgba(20,24,33,.22);
+    border-color:var(--accent);background:var(--panel)}
   .hole .part{font-size:14px;color:var(--text);line-height:1.25;display:flex;align-items:center;gap:7px}
   .hole .part .ptext{flex:1}
   .hole .part .q{color:var(--accent);font-weight:700}
@@ -292,19 +296,24 @@ function setStatus(text, cls){
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
+let expandedHole=null;       // which hole is currently expanded (TV mode)
+let expandTimer=null;
+
 function render(){
   holeEls.forEach(el=>{
     const id = el.dataset.hole;
     const d = state[id];
-    el.classList.remove('filled','empty');
+    el.classList.remove('filled','empty','expanded');
     const parts = (d && Array.isArray(d.parts)) ? d.parts.filter(p=>p&&p.desc) : [];
     const hasContent = d && (d.reg||d.make||d.model||parts.length);
+    const isExpanded = (expandedHole===id);
     if(hasContent){
       el.classList.add('filled');
+      if(isExpanded) el.classList.add('expanded');
       const big = d.reg || [d.make,d.model].filter(Boolean).join(' ') || '—';
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
-      let partsHtml='';
-      if(parts.length){
+      let body='';
+      if(parts.length && isExpanded){
         const rows = parts.map((p,i)=>{
           const collected = p.status==='collected';
           const check = collected ? '' :
@@ -318,11 +327,17 @@ function render(){
         const anyUncollected = parts.some(p=>p.status!=='collected');
         const collectBtn = anyUncollected ?
           '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
-        partsHtml='<div class="parts">'+rows+collectBtn+'</div>';
+        body='<div class="parts">'+rows+collectBtn+'</div>';
+      } else if(parts.length){
+        // collapsed: just a count
+        const total=parts.length;
+        const coll=parts.filter(p=>p.status==='collected').length;
+        const label= coll? (total-coll)+' on shelf · '+coll+' collected' : total+(total===1?' part':' parts');
+        body='<div class="parts-count">'+label+' ›</div>';
       }
       el.innerHTML='<span class="tag">'+id+'</span><div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
-        partsHtml+
+        body+
         '<span class="edit-hint">Tap reg to edit</span>';
     } else {
       el.classList.add('empty');
@@ -331,6 +346,20 @@ function render(){
     }
   });
   wireCellControls();
+}
+
+function collapseExpanded(){
+  if(expandTimer){clearTimeout(expandTimer);expandTimer=null;}
+  if(expandedHole!==null){expandedHole=null;render();}
+}
+function expandHole(id){
+  const d=state[id];
+  const parts=(d&&Array.isArray(d.parts))?d.parts.filter(p=>p&&p.desc):[];
+  if(!parts.length)return;           // nothing to expand
+  if(expandedHole===id){collapseExpanded();return;}  // tap again = collapse
+  expandedHole=id;render();
+  if(expandTimer)clearTimeout(expandTimer);
+  expandTimer=setTimeout(collapseExpanded,60000);   // auto-collapse after 60s
 }
 
 let toastTimer;
@@ -381,10 +410,16 @@ function openHole(id){
 }
 function closeHole(){overlay.classList.remove('show');activeHole=null;}
 
-// Editing (admin) opens only when tapping the reg/empty area, not part controls.
+// Click behaviour depends on mode:
+//  - Admin mode: tap reg/empty area opens the edit dialog (part controls excluded).
+//  - TV mode: tap expands/collapses the hole to show parts.
 holeEls.forEach(el=>el.addEventListener('click',e=>{
-  if(e.target.closest('.pcheck,.pbtn,.collect-btn,.parts'))return;
-  openHole(el.dataset.hole);
+  if(e.target.closest('.pcheck,.pbtn,.collect-btn'))return;  // let controls work
+  if(document.body.classList.contains('admin')){
+    openHole(el.dataset.hole);
+  } else {
+    expandHole(el.dataset.hole);
+  }
 }));
 
 // Tech controls: work WITHOUT admin password (status changes only).
