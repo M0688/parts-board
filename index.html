@@ -29,6 +29,15 @@
     border:1px solid var(--line-2);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
   .right button:hover{color:var(--text);border-color:var(--accent)}
   .right button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  #btn-log{border-color:var(--line-2);color:var(--muted)}
+  #btn-log:hover{border-color:var(--accent);color:var(--text)}
+  #log-panel{width:380px}
+  #log-panel .logitem{display:flex;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  #log-panel .logitem:last-child{border-bottom:none}
+  #log-panel .logitem .la{font-weight:600;color:var(--accent);white-space:nowrap}
+  #log-panel .logitem .lb{flex:1;color:var(--text)}
+  #log-panel .logitem .lt{color:var(--muted);font-size:11px;white-space:nowrap}
+  #log-panel .lmeta{color:var(--muted);font-size:12px}
   #btn-returns{position:relative;border-color:var(--accent);color:var(--accent);font-weight:700}
   #btn-returns.has{background:var(--accent);color:#fff;animation:pulse 1.5s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(31,111,224,.4)}50%{box-shadow:0 0 0 6px rgba(31,111,224,0)}}
@@ -170,12 +179,21 @@
   </div>
   <div class="right">
     <button id="btn-returns" title="Pending returns" style="display:none">🔔 <span id="returns-count">0</span></button>
+    <button id="btn-log" title="Activity log" style="display:none">📋 Log</button>
     <div class="mode-btns" style="display:flex;gap:8px">
       <button id="btn-admin">Admin</button>
       <button id="btn-tv" class="active">TV display</button>
     </div>
     <button id="btn-full" title="Fullscreen">⛶</button>
   </div>
+</div>
+
+<div class="returns-panel" id="log-panel">
+  <div class="rp-head">
+    <strong>Activity log</strong>
+    <button id="lp-close">✕</button>
+  </div>
+  <div id="log-list"></div>
 </div>
 
 <div class="returns-panel" id="returns-panel">
@@ -431,22 +449,22 @@ function wireCellControls(){
   });
   document.querySelectorAll('.collect-btn').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole; const d=state[hole]; if(!d)return;
-    let any=false;
-    d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;any=true;} });
+    let any=false; const collectedNames=[];
+    d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;any=true;collectedNames.push((p.qty||1)+'× '+p.desc);} });
     if(!any){toast('Tick parts first');return;}
     render();
     await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    await logActivity(hole, d.reg, 'Collected', collectedNames.join(', '));
   });
   document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
     const d=state[hole]; if(!d||!d.parts[i])return;
     const part=d.parts[i];
-    // log a return request for admin
     await requestReturn(hole, d.reg, part);
-    // put part back to on-shelf so it's no longer 'collected'
     part.status='onshelf'; part.checked=false;
     render();
     await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    await logActivity(hole, d.reg, 'Return requested', (part.qty||1)+'× '+part.desc);
     toast('Return sent to admin');
   });
 }
@@ -455,7 +473,6 @@ overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
-  // include a part still typed but not yet "Added"
   const pendingDesc=document.getElementById('in-part-desc').value.trim();
   if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1});}
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
@@ -463,14 +480,32 @@ document.getElementById('dlg-save').onclick=async()=>{
   const model=document.getElementById('in-model').value.trim();
   const parts=editParts.slice();
   const id=activeHole;
+  const prev=state[id];
+  const prevParts=(prev&&Array.isArray(prev.parts))?prev.parts:[];
+  const wasEmpty=!(prev&&(prev.reg||prev.make||prev.model||prevParts.length));
   const hasContent = reg||make||model||parts.length;
   if(hasContent){state[id]={reg,make,model,parts};} else {delete state[id];}
   render();closeHole();
   await persist(id, hasContent?{reg,make,model,parts}:null);
+  // logging
+  if(!hasContent){
+    await logActivity(id, prev&&prev.reg, 'Emptied hole', null);
+  } else if(wasEmpty){
+    const pd = parts.length ? (' · '+parts.length+' part'+(parts.length===1?'':'s')) : '';
+    await logActivity(id, reg, 'Added vehicle', [make,model].filter(Boolean).join(' ')+pd);
+  } else {
+    // edited: note part count change if any
+    const diff=parts.length-prevParts.length;
+    let detail='Updated details';
+    if(diff>0)detail=diff+' part'+(diff===1?'':'s')+' added';
+    else if(diff<0)detail=(-diff)+' part'+(diff===-1?'':'s')+' removed';
+    await logActivity(id, reg, 'Edited hole', detail);
+  }
 };
 document.getElementById('dlg-clear').onclick=async()=>{
-  if(!activeHole)return;const id=activeHole;delete state[id];render();closeHole();
+  if(!activeHole)return;const id=activeHole;const prev=state[id];delete state[id];render();closeHole();
   await persist(id,null);
+  await logActivity(id, prev&&prev.reg, 'Emptied hole', null);
 };
 document.getElementById('in-reg').addEventListener('keydown',e=>{
   if(e.key==='Enter')document.getElementById('dlg-save').click();});
@@ -479,7 +514,8 @@ document.getElementById('in-reg').addEventListener('keydown',e=>{
 const btnAdmin=document.getElementById('btn-admin'),btnTv=document.getElementById('btn-tv');
 let adminUnlocked=false;
 function enterAdmin(){document.body.classList.remove('tv');document.body.classList.add('admin');
-  btnAdmin.classList.add('active');btnTv.classList.remove('active');renderReturns();render();}
+  btnAdmin.classList.add('active');btnTv.classList.remove('active');
+  document.getElementById('btn-log').style.display='';renderReturns();render();}
 btnAdmin.onclick=()=>{
   if(document.body.classList.contains('admin'))return;
   if(!adminUnlocked){
@@ -492,7 +528,9 @@ btnAdmin.onclick=()=>{
 };
 btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classList.add('tv');
   btnTv.classList.add('active');btnAdmin.classList.remove('active');
-  document.getElementById('returns-panel').classList.remove('show');renderReturns();render();};
+  document.getElementById('btn-log').style.display='none';
+  document.getElementById('returns-panel').classList.remove('show');
+  document.getElementById('log-panel').classList.remove('show');renderReturns();render();};
 document.getElementById('btn-full').onclick=()=>{
   if(!document.fullscreenElement)document.documentElement.requestFullscreen();
   else document.exitFullscreen();};
@@ -516,8 +554,19 @@ async function persist(id, data){
   }catch(e){toast('Save failed');console.error(e);}
 }
 
-/* ---- Returns (supplier) notifications ---- */
+/* ---- Activity log ---- */
+let activity=[];
 let returns=[];
+
+async function logActivity(hole, reg, action, detail){
+  if(!sb)return;
+  try{
+    const { error } = await sb.from('activity_log').insert({
+      hole:hole||null, reg:reg||null, action, detail:detail||null
+    });
+    if(error)throw error;
+  }catch(e){console.error('log error',e);}
+}
 
 async function requestReturn(hole, reg, part){
   if(!sb)return;
@@ -577,13 +626,56 @@ function renderReturns(){
 
 async function clearReturn(rid){
   if(!sb)return;
+  const r=returns.find(x=>x.id===rid);
   try{
     const { error } = await sb.from('returns').delete().eq('id', rid);
     if(error)throw error;
     returns=returns.filter(r=>r.id!==rid);
     renderReturns();
+    if(r)await logActivity(r.hole, r.reg, 'Return processed', (r.qty||1)+'× '+r.part_desc);
   }catch(e){console.error(e);toast('Could not clear');}
 }
+
+/* ---- Activity log UI ---- */
+function renderLog(){
+  const list=document.getElementById('log-list');
+  if(!activity.length){list.innerHTML='<div class="empty-note">No activity yet.</div>';return;}
+  list.innerHTML=activity.map(a=>{
+    const when=new Date(a.created_at);
+    const meta=[a.hole?'Hole '+esc(a.hole):'',a.reg?esc(a.reg):''].filter(Boolean).join(' · ');
+    return '<div class="logitem"><span class="la">'+esc(a.action)+'</span>'+
+      '<span class="lb">'+(meta?'<span class="lmeta">'+meta+'</span> ':'')+
+      (a.detail?esc(a.detail):'')+'</span>'+
+      '<span class="lt">'+when.toLocaleDateString()+' '+when.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div>';
+  }).join('');
+}
+
+async function loadLog(){
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(200);
+    if(error)throw error;
+    activity=data||[];
+    renderLog();
+  }catch(e){console.error(e);}
+}
+
+function subscribeLog(){
+  sb.channel('log-changes')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'activity_log'},payload=>{
+      activity.unshift(payload.new);
+      if(activity.length>200)activity.pop();
+      renderLog();
+    })
+    .subscribe();
+}
+
+document.getElementById('btn-log').onclick=()=>{
+  document.getElementById('log-panel').classList.toggle('show');
+};
+document.getElementById('lp-close').onclick=()=>{
+  document.getElementById('log-panel').classList.remove('show');
+};
 
 async function loadReturns(){
   if(!sb)return;
@@ -670,6 +762,7 @@ function init(){
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   loadAll().then(subscribe);
   loadReturns().then(subscribeReturns);
+  loadLog().then(subscribeLog);
 }
 init();
 </script>
