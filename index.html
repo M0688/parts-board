@@ -529,11 +529,34 @@ async function requestReturn(hole, reg, part){
   }catch(e){console.error(e);toast('Return failed');}
 }
 
+/* ---- Flashing browser tab title when returns are waiting ---- */
+const BASE_TITLE='Parts Location Board';
+let titleFlashTimer=null, titleFlipState=false;
+
+function updateTabFlash(){
+  const inAdmin=document.body.classList.contains('admin');
+  const pending=returns.length;
+  if(pending>0 && inAdmin){
+    if(!titleFlashTimer){
+      titleFlashTimer=setInterval(()=>{
+        titleFlipState=!titleFlipState;
+        document.title = titleFlipState
+          ? '⚠️ '+returns.length+' return'+(returns.length===1?'':'s')+' waiting'
+          : BASE_TITLE;
+      },1000);
+    }
+  } else {
+    if(titleFlashTimer){clearInterval(titleFlashTimer);titleFlashTimer=null;}
+    document.title=BASE_TITLE;
+  }
+}
+
 function renderReturns(){
   const btn=document.getElementById('btn-returns');
   const count=document.getElementById('returns-count');
   const list=document.getElementById('returns-list');
   count.textContent=returns.length;
+  updateTabFlash();
   const inAdmin=document.body.classList.contains('admin');
   btn.style.display = inAdmin ? '' : 'none';
   btn.classList.toggle('has', returns.length>0);
