@@ -34,24 +34,21 @@
   #btn-log:hover{border-color:var(--accent);color:var(--text)}
   #btn-catalog{border-color:var(--line-2);color:var(--muted)}
   #btn-catalog:hover{border-color:var(--accent);color:var(--text)}
-  #btn-users,#btn-history{border-color:var(--line-2);color:var(--muted)}
-  #btn-users:hover,#btn-history:hover{border-color:var(--accent);color:var(--text)}
+  #btn-users{border-color:var(--line-2);color:var(--muted)}
+  #btn-users:hover{border-color:var(--accent);color:var(--text)}
   .users-add{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   .users-add input{flex:1;min-width:90px;font:inherit;font-size:14px;padding:9px 11px;border-radius:8px;
     background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
   .users-add input:focus{outline:none;border-color:var(--accent)}
   .users-add button{flex:none;font:inherit;font-size:14px;padding:9px 16px;border-radius:8px;cursor:pointer;
     border:none;background:var(--accent);color:#fff;font-weight:600}
-  #users-list .uitem,#history-list .hitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  #users-list .uitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
     padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
-  #users-list .uitem:last-child,#history-list .hitem:last-child{border-bottom:none}
+  #users-list .uitem:last-child{border-bottom:none}
   #users-list .uitem .upin{color:var(--muted);font-size:12px}
   #users-list .uitem button{font:inherit;font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;
     border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);flex:none}
   #users-list .uitem button:hover{border-color:var(--bad);color:var(--bad)}
-  #history-list .hitem .hu{font-weight:600;color:var(--accent)}
-  #history-list .hitem .hd{flex:1;color:var(--text)}
-  #history-list .hitem .htime{color:var(--muted);font-size:11px;white-space:nowrap}
   #catalog-panel{width:360px}
   #catalog-list .catitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
     padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px}
@@ -182,6 +179,9 @@
   .pin-input{width:100%;font-size:32px;text-align:center;letter-spacing:14px;padding:12px;
     border-radius:10px;background:var(--bg);border:1px solid var(--line-2);color:var(--text);margin-bottom:14px}
   .pin-input:focus{outline:none;border-color:var(--accent)}
+  .pin-error{min-height:20px;color:var(--bad);font-size:14px;font-weight:600;margin-bottom:10px}
+  .pin-error.shake{animation:shake .4s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
   .pin-pad button{font:inherit;font-size:22px;font-weight:600;padding:16px 0;border-radius:10px;cursor:pointer;
     border:1px solid var(--line-2);background:var(--panel-2);color:var(--text)}
@@ -223,7 +223,6 @@
     <button id="btn-log" title="Activity log" style="display:none">📋 Log</button>
     <button id="btn-catalog" title="Manage parts catalogue" style="display:none">🔧 Parts</button>
     <button id="btn-users" title="Manage users" style="display:none">👤 Users</button>
-    <button id="btn-history" title="Collections history" style="display:none">📦 History</button>
     <div class="mode-btns" style="display:flex;gap:8px">
       <button id="btn-admin">Admin</button>
       <button id="btn-tv" class="active">TV display</button>
@@ -243,14 +242,6 @@
     <button id="btn-add-user">Add</button>
   </div>
   <div id="users-list"></div>
-</div>
-
-<div class="returns-panel" id="history-panel">
-  <div class="rp-head">
-    <strong>Collections history</strong>
-    <button id="history-close">✕</button>
-  </div>
-  <div id="history-list"></div>
 </div>
 
 <div class="returns-panel" id="catalog-panel">
@@ -346,6 +337,7 @@
     <p class="sub" id="pin-sub">Confirm collection</p>
     <input id="pin-input" class="pin-input" type="password" inputmode="numeric" maxlength="4"
       placeholder="••••" autocomplete="off">
+    <div id="pin-error" class="pin-error"></div>
     <div class="pin-pad" id="pin-pad"></div>
     <div class="actions">
       <button class="cancel" id="pin-cancel">Cancel</button>
@@ -566,11 +558,18 @@ function promptPin(subtitle, onSuccess){
   if(!users.length){toast('No users set up yet');return;}
   pinCallback=onSuccess;
   document.getElementById('pin-sub').textContent=subtitle;
+  document.getElementById('pin-error').textContent='';
   pinInput.value='';
   pinOverlay.classList.add('show');
   setTimeout(()=>pinInput.focus(),50);
 }
 function closePin(){pinOverlay.classList.remove('show');pinCallback=null;}
+
+function pinError(msg){
+  const el=document.getElementById('pin-error');
+  el.textContent=msg;
+  el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');
+}
 
 function buildPinPad(){
   const pad=document.getElementById('pin-pad');
@@ -585,9 +584,10 @@ function buildPinPad(){
 }
 function submitPin(){
   const pin=pinInput.value.trim();
-  if(pin.length<4){toast('Enter 4 digits');return;}
+  if(pin.length<4){pinError('Enter all 4 digits');return;}
   const user=findUserByPin(pin);
-  if(!user){toast('PIN not recognised');pinInput.value='';return;}
+  if(!user){pinError('Incorrect PIN — try again');pinInput.value='';return;}
+  document.getElementById('pin-error').textContent='';
   const cb=pinCallback;
   closePin();
   if(cb)cb(user);
@@ -661,8 +661,7 @@ function enterAdmin(){document.body.classList.remove('tv');document.body.classLi
   btnAdmin.classList.add('active');btnTv.classList.remove('active');
   document.getElementById('btn-log').style.display='';
   document.getElementById('btn-catalog').style.display='';
-  document.getElementById('btn-users').style.display='';
-  document.getElementById('btn-history').style.display='';renderReturns();render();}
+  document.getElementById('btn-users').style.display='';renderReturns();render();}
 btnAdmin.onclick=()=>{
   if(document.body.classList.contains('admin'))return;
   if(!adminUnlocked){
@@ -678,12 +677,10 @@ btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classLi
   document.getElementById('btn-log').style.display='none';
   document.getElementById('btn-catalog').style.display='none';
   document.getElementById('btn-users').style.display='none';
-  document.getElementById('btn-history').style.display='none';
   document.getElementById('returns-panel').classList.remove('show');
   document.getElementById('log-panel').classList.remove('show');
   document.getElementById('catalog-panel').classList.remove('show');
-  document.getElementById('users-panel').classList.remove('show');
-  document.getElementById('history-panel').classList.remove('show');renderReturns();render();};
+  document.getElementById('users-panel').classList.remove('show');renderReturns();render();};
 document.getElementById('btn-full').onclick=()=>{
   if(!document.fullscreenElement)document.documentElement.requestFullscreen();
   else document.exitFullscreen();};
@@ -1053,12 +1050,6 @@ document.getElementById('btn-add-user').onclick=async()=>{
   document.getElementById('new-user-name').value='';
   document.getElementById('new-user-pin').value='';
 };
-// History panel
-document.getElementById('btn-history').onclick=()=>{
-  const p=document.getElementById('history-panel');p.classList.toggle('show');
-  if(p.classList.contains('show'))renderCollections();
-};
-document.getElementById('history-close').onclick=()=>document.getElementById('history-panel').classList.remove('show');
 
 async function loadReturns(){
   if(!sb)return;
