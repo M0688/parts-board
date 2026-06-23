@@ -34,6 +34,24 @@
   #btn-log:hover{border-color:var(--accent);color:var(--text)}
   #btn-catalog{border-color:var(--line-2);color:var(--muted)}
   #btn-catalog:hover{border-color:var(--accent);color:var(--text)}
+  #btn-users,#btn-history{border-color:var(--line-2);color:var(--muted)}
+  #btn-users:hover,#btn-history:hover{border-color:var(--accent);color:var(--text)}
+  .users-add{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .users-add input{flex:1;min-width:90px;font:inherit;font-size:14px;padding:9px 11px;border-radius:8px;
+    background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
+  .users-add input:focus{outline:none;border-color:var(--accent)}
+  .users-add button{flex:none;font:inherit;font-size:14px;padding:9px 16px;border-radius:8px;cursor:pointer;
+    border:none;background:var(--accent);color:#fff;font-weight:600}
+  #users-list .uitem,#history-list .hitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  #users-list .uitem:last-child,#history-list .hitem:last-child{border-bottom:none}
+  #users-list .uitem .upin{color:var(--muted);font-size:12px}
+  #users-list .uitem button{font:inherit;font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);flex:none}
+  #users-list .uitem button:hover{border-color:var(--bad);color:var(--bad)}
+  #history-list .hitem .hu{font-weight:600;color:var(--accent)}
+  #history-list .hitem .hd{flex:1;color:var(--text)}
+  #history-list .hitem .htime{color:var(--muted);font-size:11px;white-space:nowrap}
   #catalog-panel{width:360px}
   #catalog-list .catitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
     padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px}
@@ -160,6 +178,20 @@
     border:1px solid var(--line-2);color:var(--muted);padding:8px 16px;border-radius:20px;
     font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
+  .pin-dialog{max-width:320px;text-align:center}
+  .pin-input{width:100%;font-size:32px;text-align:center;letter-spacing:14px;padding:12px;
+    border-radius:10px;background:var(--bg);border:1px solid var(--line-2);color:var(--text);margin-bottom:14px}
+  .pin-input:focus{outline:none;border-color:var(--accent)}
+  .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .pin-pad button{font:inherit;font-size:22px;font-weight:600;padding:16px 0;border-radius:10px;cursor:pointer;
+    border:1px solid var(--line-2);background:var(--panel-2);color:var(--text)}
+  .pin-pad button:hover{border-color:var(--accent)}
+  .pin-pad button.wide{grid-column:span 1}
+  .confirm-body{font-size:15px;line-height:1.6;margin:6px 0 14px}
+  .confirm-body .cu{font-weight:700;color:var(--accent)}
+  .confirm-body .cp{margin-top:8px}
+  .confirm-body .cp .ci{display:block;padding:2px 0}
+  .confirm-body .ct{margin-top:10px;color:var(--muted);font-size:13px}
 
   .setup{max-width:640px;margin:60px auto;padding:28px;background:var(--panel);
     border:1px solid var(--line-2);border-radius:14px;display:none}
@@ -190,12 +222,35 @@
     <button id="btn-returns" title="Pending returns" style="display:none">🔔 <span id="returns-count">0</span></button>
     <button id="btn-log" title="Activity log" style="display:none">📋 Log</button>
     <button id="btn-catalog" title="Manage parts catalogue" style="display:none">🔧 Parts</button>
+    <button id="btn-users" title="Manage users" style="display:none">👤 Users</button>
+    <button id="btn-history" title="Collections history" style="display:none">📦 History</button>
     <div class="mode-btns" style="display:flex;gap:8px">
       <button id="btn-admin">Admin</button>
       <button id="btn-tv" class="active">TV display</button>
     </div>
     <button id="btn-full" title="Fullscreen">⛶</button>
   </div>
+</div>
+
+<div class="returns-panel" id="users-panel">
+  <div class="rp-head">
+    <strong>Users</strong>
+    <button id="users-close">✕</button>
+  </div>
+  <div class="users-add">
+    <input id="new-user-name" placeholder="Name" autocomplete="off">
+    <input id="new-user-pin" placeholder="4-digit PIN" inputmode="numeric" maxlength="4" autocomplete="off">
+    <button id="btn-add-user">Add</button>
+  </div>
+  <div id="users-list"></div>
+</div>
+
+<div class="returns-panel" id="history-panel">
+  <div class="rp-head">
+    <strong>Collections history</strong>
+    <button id="history-close">✕</button>
+  </div>
+  <div id="history-list"></div>
 </div>
 
 <div class="returns-panel" id="catalog-panel">
@@ -284,6 +339,30 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="overlay" id="pin-overlay">
+  <div class="dialog pin-dialog">
+    <h3 id="pin-title">Enter your PIN</h3>
+    <p class="sub" id="pin-sub">Confirm collection</p>
+    <input id="pin-input" class="pin-input" type="password" inputmode="numeric" maxlength="4"
+      placeholder="••••" autocomplete="off">
+    <div class="pin-pad" id="pin-pad"></div>
+    <div class="actions">
+      <button class="cancel" id="pin-cancel">Cancel</button>
+      <button class="save" id="pin-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="confirm-overlay">
+  <div class="dialog">
+    <h3 id="confirm-title">Collected</h3>
+    <div id="confirm-body" class="confirm-body"></div>
+    <div class="actions">
+      <button class="save" id="confirm-ok">Done</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -449,25 +528,90 @@ function wireCellControls(){
   });
   document.querySelectorAll('.collect-btn').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole; const d=state[hole]; if(!d)return;
-    let any=false; const collectedNames=[];
-    d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;any=true;collectedNames.push((p.qty||1)+'× '+p.desc);} });
-    if(!any){toast('Tick parts first');return;}
-    render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
-    await logActivity(hole, d.reg, 'Collected', collectedNames.join(', '));
+    const picked=d.parts.filter(p=>p.checked && p.status!=='collected');
+    if(!picked.length){toast('Tick parts first');return;}
+    promptPin('Confirm collection', async (user)=>{
+      const names=[];
+      d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;names.push((p.qty||1)+'× '+p.desc);} });
+      render();
+      await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+      await logActivity(hole, d.reg, 'Collected', names.join(', ')+' — by '+user.name);
+      await logCollection(user.name, hole, d.reg, 'Collected', names.join(', '));
+      showConfirm('Parts collected', user.name, names, hole, d.reg);
+    });
   });
   document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
     const d=state[hole]; if(!d||!d.parts[i])return;
     const part=d.parts[i];
-    await requestReturn(hole, d.reg, part);
-    part.status='onshelf'; part.checked=false;
-    render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
-    await logActivity(hole, d.reg, 'Return requested', (part.qty||1)+'× '+part.desc);
-    toast('Return sent to admin');
+    promptPin('Confirm return', async (user)=>{
+      await requestReturn(hole, d.reg, part);
+      part.status='onshelf'; part.checked=false;
+      render();
+      await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+      const nm=(part.qty||1)+'× '+part.desc;
+      await logActivity(hole, d.reg, 'Return requested', nm+' — by '+user.name);
+      await logCollection(user.name, hole, d.reg, 'Return requested', nm);
+      showConfirm('Return requested', user.name, [nm], hole, d.reg);
+    });
   });
 }
+
+/* ---- PIN prompt ---- */
+let pinCallback=null;
+const pinOverlay=document.getElementById('pin-overlay');
+const pinInput=document.getElementById('pin-input');
+
+function promptPin(subtitle, onSuccess){
+  if(!users.length){toast('No users set up yet');return;}
+  pinCallback=onSuccess;
+  document.getElementById('pin-sub').textContent=subtitle;
+  pinInput.value='';
+  pinOverlay.classList.add('show');
+  setTimeout(()=>pinInput.focus(),50);
+}
+function closePin(){pinOverlay.classList.remove('show');pinCallback=null;}
+
+function buildPinPad(){
+  const pad=document.getElementById('pin-pad');
+  const keys=['1','2','3','4','5','6','7','8','9','⌫','0','✓'];
+  pad.innerHTML=keys.map(k=>'<button data-k="'+k+'">'+k+'</button>').join('');
+  pad.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k;
+    if(k==='⌫'){pinInput.value=pinInput.value.slice(0,-1);}
+    else if(k==='✓'){submitPin();}
+    else if(pinInput.value.length<4){pinInput.value+=k;}
+  });
+}
+function submitPin(){
+  const pin=pinInput.value.trim();
+  if(pin.length<4){toast('Enter 4 digits');return;}
+  const user=findUserByPin(pin);
+  if(!user){toast('PIN not recognised');pinInput.value='';return;}
+  const cb=pinCallback;
+  closePin();
+  if(cb)cb(user);
+}
+document.getElementById('pin-ok').onclick=submitPin;
+document.getElementById('pin-cancel').onclick=closePin;
+pinOverlay.addEventListener('click',e=>{if(e.target===pinOverlay)closePin();});
+pinInput.addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+buildPinPad();
+
+/* ---- Confirmation card ---- */
+function showConfirm(title, userName, names, hole, reg){
+  document.getElementById('confirm-title').textContent=title;
+  const now=new Date();
+  document.getElementById('confirm-body').innerHTML=
+    '<div><span class="cu">'+esc(userName)+'</span></div>'+
+    '<div class="cp">'+names.map(n=>'<span class="ci">• '+esc(n)+'</span>').join('')+'</div>'+
+    '<div class="ct">Bin '+esc(hole)+(reg?' · '+esc(reg):'')+'<br>'+
+    now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+now.toLocaleDateString()+'</div>';
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+document.getElementById('confirm-ok').onclick=()=>{
+  document.getElementById('confirm-overlay').classList.remove('show');
+};
 document.getElementById('dlg-cancel').onclick=closeHole;
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 
@@ -516,7 +660,9 @@ let adminUnlocked=false;
 function enterAdmin(){document.body.classList.remove('tv');document.body.classList.add('admin');
   btnAdmin.classList.add('active');btnTv.classList.remove('active');
   document.getElementById('btn-log').style.display='';
-  document.getElementById('btn-catalog').style.display='';renderReturns();render();}
+  document.getElementById('btn-catalog').style.display='';
+  document.getElementById('btn-users').style.display='';
+  document.getElementById('btn-history').style.display='';renderReturns();render();}
 btnAdmin.onclick=()=>{
   if(document.body.classList.contains('admin'))return;
   if(!adminUnlocked){
@@ -531,9 +677,13 @@ btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classLi
   btnTv.classList.add('active');btnAdmin.classList.remove('active');
   document.getElementById('btn-log').style.display='none';
   document.getElementById('btn-catalog').style.display='none';
+  document.getElementById('btn-users').style.display='none';
+  document.getElementById('btn-history').style.display='none';
   document.getElementById('returns-panel').classList.remove('show');
   document.getElementById('log-panel').classList.remove('show');
-  document.getElementById('catalog-panel').classList.remove('show');renderReturns();render();};
+  document.getElementById('catalog-panel').classList.remove('show');
+  document.getElementById('users-panel').classList.remove('show');
+  document.getElementById('history-panel').classList.remove('show');renderReturns();render();};
 document.getElementById('btn-full').onclick=()=>{
   if(!document.fullscreenElement)document.documentElement.requestFullscreen();
   else document.exitFullscreen();};
@@ -560,6 +710,88 @@ async function persist(id, data){
 /* ---- Activity log ---- */
 let activity=[];
 let returns=[];
+let users=[];
+let collections=[];
+
+/* ---- Users ---- */
+async function loadUsers(){
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('users').select('*').order('name');
+    if(error)throw error;
+    users=data||[];
+    renderUsers();
+  }catch(e){console.error('users load',e);}
+}
+async function addUser(name,pin){
+  if(!sb)return;
+  try{
+    const { error } = await sb.from('users').insert({name,pin});
+    if(error)throw error;
+    await loadUsers();
+    toast('User added');
+  }catch(e){
+    if((e.message||'').includes('duplicate')||(e.code==='23505'))toast('PIN already in use');
+    else {toast('Could not add user');console.error(e);}
+  }
+}
+async function removeUser(id){
+  if(!sb)return;
+  try{ await sb.from('users').delete().eq('id',id); await loadUsers(); }
+  catch(e){console.error(e);}
+}
+function findUserByPin(pin){
+  return users.find(u=>String(u.pin)===String(pin))||null;
+}
+
+function renderUsers(){
+  const list=document.getElementById('users-list');
+  if(!list)return;
+  if(!users.length){list.innerHTML='<div class="empty-note">No users yet.</div>';return;}
+  list.innerHTML=users.map(u=>
+    '<div class="uitem"><span>'+esc(u.name)+' <span class="upin">PIN '+esc(u.pin)+'</span></span>'+
+    '<button data-id="'+u.id+'">Remove</button></div>'
+  ).join('');
+  list.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>removeUser(b.dataset.id));
+}
+
+function renderCollections(){
+  const list=document.getElementById('history-list');
+  if(!list)return;
+  if(!collections.length){list.innerHTML='<div class="empty-note">No collections yet.</div>';return;}
+  list.innerHTML=collections.map(c=>{
+    const t=new Date(c.created_at);
+    return '<div class="hitem"><span class="hd"><span class="hu">'+esc(c.user_name||'?')+'</span> '+
+      esc(c.action||'')+' · '+esc(c.parts||'')+'<br><span class="upin">Bin '+esc(c.hole||'')+
+      (c.reg?' · '+esc(c.reg):'')+'</span></span>'+
+      '<span class="htime">'+t.toLocaleDateString()+'<br>'+t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div>';
+  }).join('');
+}
+
+/* ---- Collections history ---- */
+async function logCollection(userName,hole,reg,action,partsStr){
+  if(!sb)return;
+  try{
+    await sb.from('collections').insert({user_name:userName,hole,reg,action,parts:partsStr});
+  }catch(e){console.error('collection log',e);}
+}
+async function loadCollections(){
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('collections').select('*').order('created_at',{ascending:false}).limit(200);
+    if(error)throw error;
+    collections=data||[];
+    renderCollections();
+  }catch(e){console.error(e);}
+}
+function subscribeCollections(){
+  sb.channel('collections-changes')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'collections'},payload=>{
+      collections.unshift(payload.new);
+      if(collections.length>200)collections.pop();
+      renderCollections();
+    }).subscribe();
+}
 
 /* ---- Parts catalogue (predictive search) ---- */
 const BUILTIN_PARTS=[
@@ -806,6 +1038,28 @@ document.getElementById('cat-close').onclick=()=>{
 };
 document.getElementById('catalog-search').addEventListener('input',renderCatalog);
 
+// Users panel
+document.getElementById('btn-users').onclick=()=>{
+  const p=document.getElementById('users-panel');p.classList.toggle('show');
+  if(p.classList.contains('show'))renderUsers();
+};
+document.getElementById('users-close').onclick=()=>document.getElementById('users-panel').classList.remove('show');
+document.getElementById('btn-add-user').onclick=async()=>{
+  const name=document.getElementById('new-user-name').value.trim();
+  const pin=document.getElementById('new-user-pin').value.trim();
+  if(!name){toast('Enter a name');return;}
+  if(!/^\d{4}$/.test(pin)){toast('PIN must be 4 digits');return;}
+  await addUser(name,pin);
+  document.getElementById('new-user-name').value='';
+  document.getElementById('new-user-pin').value='';
+};
+// History panel
+document.getElementById('btn-history').onclick=()=>{
+  const p=document.getElementById('history-panel');p.classList.toggle('show');
+  if(p.classList.contains('show'))renderCollections();
+};
+document.getElementById('history-close').onclick=()=>document.getElementById('history-panel').classList.remove('show');
+
 async function loadReturns(){
   if(!sb)return;
   try{
@@ -893,6 +1147,8 @@ function init(){
   loadReturns().then(subscribeReturns);
   loadLog().then(subscribeLog);
   loadCatalog();
+  loadUsers();
+  loadCollections().then(subscribeCollections);
 }
 init();
 </script>
