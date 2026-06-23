@@ -11,6 +11,7 @@
     --ok:#1f9d57;--bad:#cc3b3b;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  body{text-transform:uppercase}
   html,body{height:100%}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
@@ -31,6 +32,16 @@
   .right button.active{background:var(--accent);border-color:var(--accent);color:#fff}
   #btn-log{border-color:var(--line-2);color:var(--muted)}
   #btn-log:hover{border-color:var(--accent);color:var(--text)}
+  #btn-catalog{border-color:var(--line-2);color:var(--muted)}
+  #btn-catalog:hover{border-color:var(--accent);color:var(--text)}
+  #catalog-panel{width:360px}
+  #catalog-list .catitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  #catalog-list .catitem:last-child{border-bottom:none}
+  #catalog-list .catitem em{color:var(--muted);font-style:normal;font-size:11px}
+  #catalog-list .catitem button{font:inherit;font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);flex:none}
+  #catalog-list .catitem button:hover{border-color:var(--bad);color:var(--bad)}
   #log-panel{width:380px}
   #log-panel .logitem{display:flex;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
   #log-panel .logitem:last-child{border-bottom:none}
@@ -180,12 +191,24 @@
   <div class="right">
     <button id="btn-returns" title="Pending returns" style="display:none">🔔 <span id="returns-count">0</span></button>
     <button id="btn-log" title="Activity log" style="display:none">📋 Log</button>
+    <button id="btn-catalog" title="Manage parts catalogue" style="display:none">🔧 Parts</button>
     <div class="mode-btns" style="display:flex;gap:8px">
       <button id="btn-admin">Admin</button>
       <button id="btn-tv" class="active">TV display</button>
     </div>
     <button id="btn-full" title="Fullscreen">⛶</button>
   </div>
+</div>
+
+<div class="returns-panel" id="catalog-panel">
+  <div class="rp-head">
+    <strong>Parts catalogue</strong>
+    <button id="cat-close">✕</button>
+  </div>
+  <input id="catalog-search" placeholder="Search parts…" autocomplete="off"
+    style="width:100%;font:inherit;font-size:14px;padding:9px 11px;border-radius:8px;
+    background:var(--bg);border:1px solid var(--line-2);color:var(--text);margin-bottom:10px">
+  <div id="catalog-list"></div>
 </div>
 
 <div class="returns-panel" id="log-panel">
@@ -517,7 +540,8 @@ const btnAdmin=document.getElementById('btn-admin'),btnTv=document.getElementByI
 let adminUnlocked=false;
 function enterAdmin(){document.body.classList.remove('tv');document.body.classList.add('admin');
   btnAdmin.classList.add('active');btnTv.classList.remove('active');
-  document.getElementById('btn-log').style.display='';renderReturns();render();}
+  document.getElementById('btn-log').style.display='';
+  document.getElementById('btn-catalog').style.display='';renderReturns();render();}
 btnAdmin.onclick=()=>{
   if(document.body.classList.contains('admin'))return;
   if(!adminUnlocked){
@@ -531,8 +555,10 @@ btnAdmin.onclick=()=>{
 btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classList.add('tv');
   btnTv.classList.add('active');btnAdmin.classList.remove('active');
   document.getElementById('btn-log').style.display='none';
+  document.getElementById('btn-catalog').style.display='none';
   document.getElementById('returns-panel').classList.remove('show');
-  document.getElementById('log-panel').classList.remove('show');renderReturns();render();};
+  document.getElementById('log-panel').classList.remove('show');
+  document.getElementById('catalog-panel').classList.remove('show');renderReturns();render();};
 document.getElementById('btn-full').onclick=()=>{
   if(!document.fullscreenElement)document.documentElement.requestFullscreen();
   else document.exitFullscreen();};
@@ -594,14 +620,18 @@ const BUILTIN_PARTS=[
 "Bonnet release cable","Accelerator cable","Bonnet strut","Tailgate strut","Boot lock",
 "Wheel speed sensor","Parking sensor","Reversing camera","Horn","Relay","Fuse","Wiring connector"
 ];
-let customParts=[];   // from Supabase, grows over time
+let customParts=[];     // custom names from Supabase
+let hiddenParts=[];     // names (lowercase) hidden from the list
 
 function allParts(){
   const set=new Map();
   BUILTIN_PARTS.forEach(p=>set.set(p.toLowerCase(),p));
   customParts.forEach(p=>{ if(p&&!set.has(p.toLowerCase()))set.set(p.toLowerCase(),p); });
+  // drop hidden
+  hiddenParts.forEach(h=>set.delete(h));
   return Array.from(set.values()).sort((a,b)=>a.localeCompare(b));
 }
+function isBuiltin(name){return BUILTIN_PARTS.some(p=>p.toLowerCase()===name.toLowerCase());}
 
 function populateDatalist(){
   const dl=document.getElementById('parts-datalist');
@@ -610,25 +640,67 @@ function populateDatalist(){
 }
 
 async function loadCatalog(){
-  populateDatalist();   // built-ins available immediately
+  populateDatalist();
   if(!sb)return;
   try{
-    const { data, error } = await sb.from('parts_catalog').select('name');
+    const { data, error } = await sb.from('parts_catalog').select('name,hidden');
     if(error)throw error;
-    customParts=(data||[]).map(r=>r.name).filter(Boolean);
+    customParts=[];hiddenParts=[];
+    (data||[]).forEach(r=>{
+      if(!r.name)return;
+      if(r.hidden){hiddenParts.push(r.name.toLowerCase());}
+      else {customParts.push(r.name);}
+    });
     populateDatalist();
+    renderCatalog();
   }catch(e){console.error('catalog load',e);}
 }
 
 async function saveCatalogPart(name){
   if(!name)return;
-  const exists=allParts().some(p=>p.toLowerCase()===name.toLowerCase());
-  if(exists)return;                 // already known, don't duplicate
-  customParts.push(name);
+  // if it was previously hidden, un-hide it
+  const low=name.toLowerCase();
+  if(hiddenParts.includes(low)){
+    hiddenParts=hiddenParts.filter(h=>h!==low);
+    if(sb){try{await sb.from('parts_catalog').delete().eq('name',name);}catch(e){}}
+  }
+  const exists=allParts().some(p=>p.toLowerCase()===low);
+  if(exists){populateDatalist();return;}
+  if(!isBuiltin(name))customParts.push(name);
   populateDatalist();
-  if(!sb)return;
-  try{ await sb.from('parts_catalog').insert({name}); }
+  if(!sb||isBuiltin(name))return;
+  try{ await sb.from('parts_catalog').insert({name,hidden:false}); }
   catch(e){console.error('catalog save',e);}
+}
+
+async function removeCatalogPart(name){
+  if(!name)return;
+  const low=name.toLowerCase();
+  if(isBuiltin(name)){
+    // hide built-in: store a hidden marker row
+    if(!hiddenParts.includes(low))hiddenParts.push(low);
+    if(sb){try{ await sb.from('parts_catalog').upsert({name,hidden:true}); }catch(e){console.error(e);}}
+  } else {
+    // delete custom part
+    customParts=customParts.filter(p=>p.toLowerCase()!==low);
+    if(sb){try{ await sb.from('parts_catalog').delete().eq('name',name); }catch(e){console.error(e);}}
+  }
+  populateDatalist();renderCatalog();
+}
+
+/* ---- Catalogue manager panel ---- */
+function renderCatalog(){
+  const list=document.getElementById('catalog-list');
+  if(!list)return;
+  const filter=(document.getElementById('catalog-search')||{}).value||'';
+  const f=filter.trim().toLowerCase();
+  const items=allParts().filter(p=>!f||p.toLowerCase().includes(f));
+  if(!items.length){list.innerHTML='<div class="empty-note">No matching parts.</div>';return;}
+  list.innerHTML=items.map(p=>
+    '<div class="catitem"><span>'+esc(p)+(isBuiltin(p)?'':' <em>(custom)</em>')+'</span>'+
+    '<button data-name="'+esc(p)+'">Remove</button></div>'
+  ).join('');
+  list.querySelectorAll('button[data-name]').forEach(b=>b.onclick=()=>removeCatalogPart(b.dataset.name));
 }
 
 async function logActivity(hole, reg, action, detail){
@@ -749,6 +821,15 @@ document.getElementById('btn-log').onclick=()=>{
 document.getElementById('lp-close').onclick=()=>{
   document.getElementById('log-panel').classList.remove('show');
 };
+document.getElementById('btn-catalog').onclick=()=>{
+  const p=document.getElementById('catalog-panel');
+  p.classList.toggle('show');
+  if(p.classList.contains('show'))renderCatalog();
+};
+document.getElementById('cat-close').onclick=()=>{
+  document.getElementById('catalog-panel').classList.remove('show');
+};
+document.getElementById('catalog-search').addEventListener('input',renderCatalog);
 
 async function loadReturns(){
   if(!sb)return;
