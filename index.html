@@ -95,7 +95,7 @@
   .hole .parts-count{margin-top:8px;font-size:14px;font-weight:600;color:var(--accent);cursor:pointer}
   body.tv .hole .parts-count{font-size:18px}
   .hole.expanded{position:relative;z-index:40;box-shadow:0 14px 40px rgba(20,24,33,.22);
-    border-color:var(--accent);background:var(--panel)}
+    border-color:var(--accent);background:var(--panel);max-height:80vh;overflow-y:auto}
   .hole .part{font-size:14px;color:var(--text);line-height:1.25;display:flex;align-items:center;gap:7px}
   .hole .part .ptext{flex:1}
   .hole .part .q{color:var(--accent);font-weight:700}
@@ -125,7 +125,11 @@
   .overlay{position:fixed;inset:0;background:rgba(20,24,33,.45);display:none;
     align-items:center;justify-content:center;z-index:50;padding:20px}
   .overlay.show{display:flex}
-  .dialog{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;width:100%;max-width:420px;padding:24px}
+  .dialog{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;width:100%;max-width:420px;
+    padding:24px;max-height:90vh;display:flex;flex-direction:column}
+  .dialog h3,.dialog p.sub{flex:none}
+  .dialog .dlg-body{overflow-y:auto;flex:1;margin:0 -4px;padding:0 4px}
+  .dialog .actions{flex:none}
   .dialog h3{font-size:18px;margin-bottom:4px}
   .dialog p.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
   .field{margin-bottom:14px}
@@ -139,6 +143,8 @@
   .parts-edit .row{display:flex;align-items:center;gap:8px;background:var(--bg);
     border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
   .parts-edit .row .q{color:var(--accent);font-weight:700;min-width:28px}
+  .parts-edit .row.done .d{text-decoration:line-through;color:var(--muted)}
+  .parts-edit .row .d em{font-style:normal;color:var(--muted);font-size:11px}
   .parts-edit .row .d{flex:1}
   .parts-edit .row .x{cursor:pointer;color:var(--muted);border:none;background:none;
     font-size:16px;padding:0 4px;flex:none}
@@ -286,6 +292,7 @@
   <div class="dialog">
     <h3 id="dlg-title">Hole</h3>
     <p class="sub">Set the vehicle stored in this hole.</p>
+    <div class="dlg-body">
     <div class="field"><label>Registration</label>
       <input id="in-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
     <div class="field"><label>Make</label>
@@ -301,6 +308,7 @@
         <input id="in-part-qty" type="number" min="1" value="1" class="qty-input">
         <button type="button" id="btn-add-part">Add</button>
       </div>
+    </div>
     </div>
     <div class="actions">
       <button class="clear" id="dlg-clear">Empty hole</button>
@@ -415,8 +423,8 @@ let editParts=[];  // working copy of parts while dialog open
 function renderEditParts(){
   const wrap=document.getElementById('parts-list');
   wrap.innerHTML=editParts.map((p,i)=>
-    '<div class="row"><span class="q">'+esc(String(p.qty||1))+'×</span>'+
-    '<span class="d">'+esc(p.desc)+'</span>'+
+    '<div class="row'+(p.status==='collected'?' done':'')+'"><span class="q">'+esc(String(p.qty||1))+'×</span>'+
+    '<span class="d">'+esc(p.desc)+(p.status==='collected'?' <em>(collected)</em>':'')+'</span>'+
     '<button type="button" class="x" data-i="'+i+'">✕</button></div>'
   ).join('');
   wrap.querySelectorAll('.x').forEach(b=>b.onclick=()=>{
@@ -428,7 +436,7 @@ function addPartFromInputs(){
   const desc=descEl.value.trim();
   const qty=parseInt(qtyEl.value)||1;
   if(!desc)return;
-  editParts.push({desc,qty});
+  editParts.push({desc,qty,status:'onshelf'});
   saveCatalogPart(desc);   // remember new parts for next time
   descEl.value='';qtyEl.value='1';renderEditParts();descEl.focus();
 }
@@ -445,7 +453,7 @@ function openHole(id){
   document.getElementById('in-reg').value=d.reg||'';
   document.getElementById('in-make').value=d.make||'';
   document.getElementById('in-model').value=d.model||'';
-  editParts = Array.isArray(d.parts) ? d.parts.map(p=>({desc:p.desc,qty:p.qty||1})) : [];
+  editParts = Array.isArray(d.parts) ? d.parts.map(p=>({desc:p.desc,qty:p.qty||1,status:p.status||'onshelf'})) : [];
   document.getElementById('in-part-desc').value='';
   document.getElementById('in-part-qty').value='1';
   renderEditParts();
@@ -499,7 +507,7 @@ overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
   const pendingDesc=document.getElementById('in-part-desc').value.trim();
-  if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1});saveCatalogPart(pendingDesc);}
+  if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1,status:'onshelf'});saveCatalogPart(pendingDesc);}
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
   const make=document.getElementById('in-make').value.trim();
   const model=document.getElementById('in-model').value.trim();
