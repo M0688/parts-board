@@ -273,7 +273,8 @@
       <label>Parts in this hole</label>
       <div id="parts-list" class="parts-edit"></div>
       <div class="parts-add">
-        <input id="in-part-desc" placeholder="Part description" autocomplete="off">
+        <input id="in-part-desc" list="parts-datalist" placeholder="Search or type a part…" autocomplete="off">
+        <datalist id="parts-datalist"></datalist>
         <input id="in-part-qty" type="number" min="1" value="1" class="qty-input">
         <button type="button" id="btn-add-part">Add</button>
       </div>
@@ -405,6 +406,7 @@ function addPartFromInputs(){
   const qty=parseInt(qtyEl.value)||1;
   if(!desc)return;
   editParts.push({desc,qty});
+  saveCatalogPart(desc);   // remember new parts for next time
   descEl.value='';qtyEl.value='1';renderEditParts();descEl.focus();
 }
 document.getElementById('btn-add-part').onclick=addPartFromInputs;
@@ -474,7 +476,7 @@ overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
   const pendingDesc=document.getElementById('in-part-desc').value.trim();
-  if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1});}
+  if(pendingDesc){editParts.push({desc:pendingDesc,qty:parseInt(document.getElementById('in-part-qty').value)||1});saveCatalogPart(pendingDesc);}
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
   const make=document.getElementById('in-make').value.trim();
   const model=document.getElementById('in-model').value.trim();
@@ -557,6 +559,77 @@ async function persist(id, data){
 /* ---- Activity log ---- */
 let activity=[];
 let returns=[];
+
+/* ---- Parts catalogue (predictive search) ---- */
+const BUILTIN_PARTS=[
+"Oil filter","Air filter","Cabin/pollen filter","Fuel filter","Engine oil","Oil sump plug",
+"Brake pads (front)","Brake pads (rear)","Brake discs (front)","Brake discs (rear)","Brake caliper",
+"Brake fluid","Brake hose","Handbrake cable","Brake master cylinder","Brake shoes","Wheel cylinder",
+"Spark plugs","Glow plugs","Ignition coil","HT leads","Distributor cap",
+"Timing belt","Timing belt kit","Timing chain","Tensioner pulley","Idler pulley","Water pump",
+"Auxiliary/serpentine belt","Drive belt","Crankshaft pulley",
+"Clutch kit","Clutch master cylinder","Clutch slave cylinder","Dual mass flywheel","Release bearing",
+"Gearbox oil","CV joint","CV boot","Driveshaft","Wheel bearing (front)","Wheel bearing (rear)",
+"Shock absorber (front)","Shock absorber (rear)","Coil spring","Strut top mount","Suspension arm",
+"Lower control arm","Ball joint","Anti-roll bar link","Anti-roll bar bush","Track rod end","Tie rod",
+"Steering rack","Power steering pump","Power steering fluid","Steering column",
+"Radiator","Radiator hose (top)","Radiator hose (bottom)","Coolant/antifreeze","Thermostat",
+"Expansion tank","Heater matrix","Cooling fan","Temperature sensor",
+"Alternator","Starter motor","Battery","Battery terminal","Drive belt tensioner",
+"Headlight bulb","Headlight unit","Tail light","Indicator bulb","Number plate bulb","Fog light",
+"Wiper blades (front)","Wiper blade (rear)","Wiper motor","Washer pump","Washer jet",
+"Exhaust front pipe","Exhaust centre section","Exhaust back box","Catalytic converter","DPF",
+"Lambda/oxygen sensor","EGR valve","Exhaust manifold","Exhaust gasket","Exhaust mounting rubber",
+"Turbocharger","Turbo hose","Intercooler","Intercooler hose","MAF sensor","MAP sensor",
+"Throttle body","Injector","Injector seals","Fuel pump","Fuel pump (in-tank)","Fuel rail",
+"Engine mount","Gearbox mount","Rocker cover gasket","Head gasket","Sump gasket","Inlet manifold gasket",
+"Crankshaft sensor","Camshaft sensor","Knock sensor","Idle control valve","PCV valve",
+"ABS sensor","ABS ring","Brake light switch","Reverse light switch","Pressure switch",
+"Door handle","Door mirror","Mirror glass","Window regulator","Window motor","Door lock",
+"Wing/fender","Bumper (front)","Bumper (rear)","Bonnet","Grille","Wheel arch liner",
+"Tyre","Wheel nut","Locking wheel nut","Wheel stud","Tyre valve","Wheel trim","Alloy wheel",
+"Air conditioning compressor","AC condenser","AC drier","Pollen filter","Blower motor","Heater resistor",
+"V-belt","Pulley","Gasket set","Seal kit","O-ring","Hose clip","Jubilee clip",
+"Engine air intake hose","Breather hose","Vacuum hose","Coolant flange","Dipstick",
+"Bonnet release cable","Accelerator cable","Bonnet strut","Tailgate strut","Boot lock",
+"Wheel speed sensor","Parking sensor","Reversing camera","Horn","Relay","Fuse","Wiring connector"
+];
+let customParts=[];   // from Supabase, grows over time
+
+function allParts(){
+  const set=new Map();
+  BUILTIN_PARTS.forEach(p=>set.set(p.toLowerCase(),p));
+  customParts.forEach(p=>{ if(p&&!set.has(p.toLowerCase()))set.set(p.toLowerCase(),p); });
+  return Array.from(set.values()).sort((a,b)=>a.localeCompare(b));
+}
+
+function populateDatalist(){
+  const dl=document.getElementById('parts-datalist');
+  if(!dl)return;
+  dl.innerHTML=allParts().map(p=>'<option value="'+esc(p)+'"></option>').join('');
+}
+
+async function loadCatalog(){
+  populateDatalist();   // built-ins available immediately
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('parts_catalog').select('name');
+    if(error)throw error;
+    customParts=(data||[]).map(r=>r.name).filter(Boolean);
+    populateDatalist();
+  }catch(e){console.error('catalog load',e);}
+}
+
+async function saveCatalogPart(name){
+  if(!name)return;
+  const exists=allParts().some(p=>p.toLowerCase()===name.toLowerCase());
+  if(exists)return;                 // already known, don't duplicate
+  customParts.push(name);
+  populateDatalist();
+  if(!sb)return;
+  try{ await sb.from('parts_catalog').insert({name}); }
+  catch(e){console.error('catalog save',e);}
+}
 
 async function logActivity(hole, reg, action, detail){
   if(!sb)return;
@@ -763,6 +836,7 @@ function init(){
   loadAll().then(subscribe);
   loadReturns().then(subscribeReturns);
   loadLog().then(subscribeLog);
+  loadCatalog();
 }
 init();
 </script>
