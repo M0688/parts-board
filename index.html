@@ -379,10 +379,12 @@ function render(){
           '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
         body='<div class="parts">'+rows+collectBtn+'</div>';
       } else if(parts.length){
-        // collapsed: just a count
-        const total=parts.length;
-        const coll=parts.filter(p=>p.status==='collected').length;
-        const label= coll? (total-coll)+' on shelf · '+coll+' collected' : total+(total===1?' part':' parts');
+        // collapsed: total quantity, not number of part types
+        const sumQty=arr=>arr.reduce((t,p)=>t+(parseInt(p.qty)||1),0);
+        const total=sumQty(parts);
+        const coll=sumQty(parts.filter(p=>p.status==='collected'));
+        const onShelf=total-coll;
+        const label= coll? onShelf+' on shelf · '+coll+' collected' : total+(total===1?' item':' items');
         body='<div class="parts-count">'+label+' ›</div>';
       }
       el.innerHTML='<span class="tag">'+id+'</span><div class="reg">'+esc(big)+'</div>'+
