@@ -67,21 +67,13 @@
   .returns-panel .ritem button:hover{border-color:var(--accent)}
   .returns-panel .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:14px}
 
-  .stage{padding:22px;max-width:1500px;margin:0 auto}
-  .layout-row{display:grid;grid-template-columns:1.4fr 2fr;gap:22px;align-items:stretch}
-  .shelf-unit-wrap{display:flex;flex-direction:column}
-  .shelf-unit{display:grid;grid-template-rows:repeat(5,1fr);gap:14px;flex:1;
-    border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
-  .shelf-unit .hole.shelf{min-height:96px}
-  @media(max-width:760px){.layout-row{grid-template-columns:1fr}}
-  .units{display:flex;flex-direction:column;gap:22px}
+  .stage{padding:22px;max-width:1100px;margin:0 auto}
   .unit-label{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px 2px}
-  .top-unit{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
-  .top-mid{display:grid;grid-template-rows:1fr 1fr;gap:14px}
-  .bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-  .cabinet{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel);
-    display:grid;grid-template-rows:auto 1fr 1fr;gap:14px}
-  .cab-small{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .bin-unit-wrap{display:flex;flex-direction:column}
+  .bin-unit{display:grid;grid-template-rows:repeat(5,1fr);gap:14px;
+    border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+  .bin-shelf{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .bin-unit .hole.bin{min-height:110px}
 
   .hole{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--empty);
     min-height:120px;padding:16px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px;
@@ -234,55 +226,28 @@
 </div>
 
 <div class="stage" id="stage">
-  <div class="layout-row">
-    <div class="shelf-unit-wrap">
-      <p class="unit-label">Shelf unit</p>
-      <div class="shelf-unit">
-        <div data-hole="S1" class="hole shelf"></div>
-        <div data-hole="S2" class="hole shelf"></div>
-        <div data-hole="S3" class="hole shelf"></div>
-        <div data-hole="S4" class="hole shelf"></div>
-        <div data-hole="S5" class="hole shelf"></div>
+  <div class="bin-unit-wrap">
+    <p class="unit-label">Unit 1</p>
+    <div class="bin-unit">
+      <div class="bin-shelf">
+        <div data-hole="U1-1" class="hole bin"></div>
+        <div data-hole="U1-2" class="hole bin"></div>
       </div>
-    </div>
-    <div class="units">
-      <div>
-        <p class="unit-label">Top unit</p>
-        <div class="top-unit">
-          <div data-hole="T1" class="hole tall"></div>
-          <div class="top-mid">
-            <div data-hole="T2" class="hole"></div>
-            <div data-hole="T3" class="hole"></div>
-          </div>
-          <div data-hole="T4" class="hole tall"></div>
-        </div>
+      <div class="bin-shelf">
+        <div data-hole="U1-3" class="hole bin"></div>
+        <div data-hole="U1-4" class="hole bin"></div>
       </div>
-      <div>
-        <p class="unit-label">Bottom units</p>
-        <div class="bottom-row">
-          <div class="cabinet">
-            <div data-hole="L0" class="hole wide"></div>
-            <div class="cab-small">
-              <div data-hole="L1" class="hole"></div>
-              <div data-hole="L2" class="hole"></div>
-            </div>
-            <div class="cab-small">
-              <div data-hole="L3" class="hole"></div>
-              <div data-hole="L4" class="hole"></div>
-            </div>
-          </div>
-          <div class="cabinet">
-            <div data-hole="R0" class="hole wide"></div>
-            <div class="cab-small">
-              <div data-hole="R1" class="hole"></div>
-              <div data-hole="R2" class="hole"></div>
-            </div>
-            <div class="cab-small">
-              <div data-hole="R3" class="hole"></div>
-              <div data-hole="R4" class="hole"></div>
-            </div>
-          </div>
-        </div>
+      <div class="bin-shelf">
+        <div data-hole="U1-5" class="hole bin"></div>
+        <div data-hole="U1-6" class="hole bin"></div>
+      </div>
+      <div class="bin-shelf">
+        <div data-hole="U1-7" class="hole bin"></div>
+        <div data-hole="U1-8" class="hole bin"></div>
+      </div>
+      <div class="bin-shelf">
+        <div data-hole="U1-9" class="hole bin"></div>
+        <div data-hole="U1-10" class="hole bin"></div>
       </div>
     </div>
   </div>
