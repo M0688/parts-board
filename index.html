@@ -525,30 +525,24 @@ function wireCellControls(){
     const hole=btn.dataset.hole; const d=state[hole]; if(!d)return;
     const picked=d.parts.filter(p=>p.checked && p.status!=='collected');
     if(!picked.length){toast('Tick parts first');return;}
-    promptPin('Confirm collection', async (user)=>{
-      const names=[];
-      d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;names.push((p.qty||1)+'× '+p.desc);} });
-      render();
-      await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
-      await logActivity(hole, d.reg, 'Collected', names.join(', ')+' — by '+user.name);
-      await logCollection(user.name, hole, d.reg, 'Collected', names.join(', '));
-      showConfirm('Parts collected', user.name, names, hole, d.reg);
-    });
+    const names=[];
+    d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;names.push((p.qty||1)+'× '+p.desc);} });
+    render();
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    await logActivity(hole, d.reg, 'Collected', names.join(', '));
+    showConfirm('Parts collected', '', names, hole, d.reg);
   });
   document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
     const d=state[hole]; if(!d||!d.parts[i])return;
     const part=d.parts[i];
-    promptPin('Confirm return', async (user)=>{
-      await requestReturn(hole, d.reg, part);
-      part.status='onshelf'; part.checked=false;
-      render();
-      await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
-      const nm=(part.qty||1)+'× '+part.desc;
-      await logActivity(hole, d.reg, 'Return requested', nm+' — by '+user.name);
-      await logCollection(user.name, hole, d.reg, 'Return requested', nm);
-      showConfirm('Return requested', user.name, [nm], hole, d.reg);
-    });
+    await requestReturn(hole, d.reg, part);
+    part.status='onshelf'; part.checked=false;
+    render();
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    const nm=(part.qty||1)+'× '+part.desc;
+    await logActivity(hole, d.reg, 'Return requested', nm);
+    showConfirm('Return requested', '', [nm], hole, d.reg);
   });
 }
 
@@ -606,7 +600,7 @@ function showConfirm(title, userName, names, hole, reg){
   document.getElementById('confirm-title').textContent=title;
   const now=new Date();
   document.getElementById('confirm-body').innerHTML=
-    '<div><span class="cu">'+esc(userName)+'</span></div>'+
+    (userName?'<div><span class="cu">'+esc(userName)+'</span></div>':'')+
     '<div class="cp">'+names.map(n=>'<span class="ci">• '+esc(n)+'</span>').join('')+'</div>'+
     '<div class="ct">Bin '+esc(holeLabel(hole))+(reg?' · '+esc(reg):'')+'<br>'+
     now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+now.toLocaleDateString()+'</div>';
