@@ -94,8 +94,9 @@
     min-height:120px;padding:16px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px;
     transition:.15s;overflow:auto}
   .hole.filled{background:var(--panel-2);border-color:var(--line-2)}
-  .hole .tag{position:absolute;top:10px;right:12px;font-size:11px;letter-spacing:.5px;color:var(--muted)}
-  .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word}
+  .hole .tag{position:absolute;top:10px;right:12px;font-size:22px;font-weight:800;letter-spacing:.5px;color:var(--text)}
+  body.tv .hole .tag{font-size:30px}
+  .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word;padding-right:54px}
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
   .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:5px}
@@ -381,6 +382,8 @@ function setStatus(text, cls){
   statusEl.innerHTML = '<span class="conn"></span>'+text;
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+// Display label: strip the "U1-" unit prefix, show just the bin number.
+function holeLabel(id){return String(id).replace(/^U\d+-/,'');}
 
 let expandedHole=null;       // which hole is currently expanded (TV mode)
 let expandTimer=null;
@@ -423,13 +426,13 @@ function render(){
         const label= coll? onShelf+' on shelf · '+coll+' collected' : total+(total===1?' item':' items');
         body='<div class="parts-count">'+label+' ›</div>';
       }
-      el.innerHTML='<span class="tag">'+id+'</span><div class="reg">'+esc(big)+'</div>'+
+      el.innerHTML='<span class="tag">'+holeLabel(id)+'</span><div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
         body+
         '<span class="edit-hint">Tap reg to edit</span>';
     } else {
       el.classList.add('empty');
-      el.innerHTML='<span class="tag">'+id+'</span><div class="reg">Empty</div>'+
+      el.innerHTML='<span class="tag">'+holeLabel(id)+'</span><div class="reg">Empty</div>'+
         '<span class="edit-hint">Tap to fill</span>';
     }
   });
@@ -487,7 +490,7 @@ document.getElementById('in-part-qty').addEventListener('keydown',e=>{
 function openHole(id){
   if(!document.body.classList.contains('admin'))return;
   activeHole=id;const d=state[id]||{};
-  document.getElementById('dlg-title').textContent='Hole '+id;
+  document.getElementById('dlg-title').textContent='Bin '+holeLabel(id);
   document.getElementById('in-reg').value=d.reg||'';
   document.getElementById('in-make').value=d.make||'';
   document.getElementById('in-model').value=d.model||'';
@@ -605,7 +608,7 @@ function showConfirm(title, userName, names, hole, reg){
   document.getElementById('confirm-body').innerHTML=
     '<div><span class="cu">'+esc(userName)+'</span></div>'+
     '<div class="cp">'+names.map(n=>'<span class="ci">• '+esc(n)+'</span>').join('')+'</div>'+
-    '<div class="ct">Bin '+esc(hole)+(reg?' · '+esc(reg):'')+'<br>'+
+    '<div class="ct">Bin '+esc(holeLabel(hole))+(reg?' · '+esc(reg):'')+'<br>'+
     now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+now.toLocaleDateString()+'</div>';
   document.getElementById('confirm-overlay').classList.add('show');
 }
@@ -964,7 +967,7 @@ function renderReturns(){
   }
   list.innerHTML=returns.map(r=>
     '<div class="ritem"><div class="rt"><b>'+esc(String(r.qty||1))+'×</b> '+esc(r.part_desc)+'</div>'+
-    '<div class="rmeta">Hole '+esc(r.hole)+(r.reg?' · '+esc(r.reg):'')+
+    '<div class="rmeta">Bin '+esc(holeLabel(r.hole))+(r.reg?' · '+esc(r.reg):'')+
       ' · '+new Date(r.created_at).toLocaleString()+'</div>'+
     '<button data-id="'+r.id+'">Mark processed</button></div>'
   ).join('');
@@ -991,7 +994,7 @@ function renderLog(){
   if(!activity.length){list.innerHTML='<div class="empty-note">No activity yet.</div>';return;}
   list.innerHTML=activity.map(a=>{
     const when=new Date(a.created_at);
-    const meta=[a.hole?'Hole '+esc(a.hole):'',a.reg?esc(a.reg):''].filter(Boolean).join(' · ');
+    const meta=[a.hole?'Bin '+esc(holeLabel(a.hole)):'',a.reg?esc(a.reg):''].filter(Boolean).join(' · ');
     return '<div class="logitem"><span class="la">'+esc(a.action)+'</span>'+
       '<span class="lb">'+(meta?'<span class="lmeta">'+meta+'</span> ':'')+
       (a.detail?esc(a.detail):'')+'</span>'+
