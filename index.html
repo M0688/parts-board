@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1f6fe0">
+<link rel="manifest" href="manifest.json">
 <title>Parts Location Board</title>
 <style>
   :root{
@@ -614,6 +616,19 @@ buildPinPad();
 
 /* ---- Confirmation card ---- */
 /* ---- New-parts notifications (tablets) ---- */
+let swReg=null;
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{swReg=reg;}).catch(e=>console.log('sw',e));
+}
+// Ask for notification permission on first interaction (Android requires a gesture).
+function ensureNotifyPermission(){
+  if(!('Notification' in window))return;
+  if(Notification.permission==='default'){
+    Notification.requestPermission().catch(()=>{});
+  }
+}
+['click','touchstart'].forEach(ev=>document.addEventListener(ev,ensureNotifyPermission,{once:true}));
+
 let audioCtx=null, audioUnlocked=false;
 function unlockAudio(){
   if(audioUnlocked)return;
@@ -657,6 +672,14 @@ function notifyNewParts(hole, reg, parts){
   el.querySelector('.nclose').onclick=()=>el.remove();
   stack.appendChild(el);
   playChime();
+  // OS-level notification (shows in the Android notification shade even if
+  // the PWA is backgrounded but still running).
+  const title='New parts in Bin '+holeLabel(hole)+(reg?' · '+reg:'');
+  if(swReg && swReg.active && 'Notification' in window && Notification.permission==='granted'){
+    swReg.active.postMessage({type:'notify', title:title, body:names, tag:'bin-'+hole});
+  } else if('Notification' in window && Notification.permission==='granted'){
+    try{ new Notification(title,{body:names}); }catch(e){}
+  }
 }
 
 function showConfirm(title, userName, names, hole, reg){
