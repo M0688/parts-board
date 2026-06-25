@@ -176,6 +176,21 @@
     border:1px solid var(--line-2);color:var(--muted);padding:8px 16px;border-radius:20px;
     font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
+  #notif-stack{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:80;
+    display:flex;flex-direction:column;gap:10px;width:calc(100% - 32px);max-width:560px}
+  .notif{background:var(--accent);color:#fff;border-radius:12px;padding:14px 16px;
+    box-shadow:0 10px 30px rgba(20,24,33,.25);display:flex;align-items:flex-start;gap:12px;
+    animation:notifIn .3s ease}
+  @keyframes notifIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+  .notif .ndot{width:14px;height:14px;border-radius:50%;background:#fff;flex:none;margin-top:3px;
+    animation:notifPulse 1.2s infinite}
+  @keyframes notifPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.6)}50%{box-shadow:0 0 0 7px rgba(255,255,255,0)}}
+  .notif .ntext{flex:1;font-size:15px;line-height:1.35}
+  .notif .ntext b{font-weight:800}
+  .notif .ntext .nparts{display:block;margin-top:3px;font-size:14px;opacity:.95}
+  .notif .nclose{flex:none;background:rgba(255,255,255,.2);border:none;color:#fff;cursor:pointer;
+    font-size:14px;font-weight:700;padding:7px 12px;border-radius:8px}
+  .notif .nclose:hover{background:rgba(255,255,255,.32)}
   .pin-dialog{max-width:320px;text-align:center}
   .pin-input{width:100%;font-size:32px;text-align:center;letter-spacing:14px;padding:12px;
     border-radius:10px;background:var(--bg);border:1px solid var(--line-2);color:var(--text);margin-bottom:14px}
@@ -331,6 +346,8 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div id="notif-stack"></div>
 
 <div class="overlay" id="pin-overlay">
   <div class="dialog pin-dialog">
@@ -596,6 +613,52 @@ pinInput.addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 buildPinPad();
 
 /* ---- Confirmation card ---- */
+/* ---- New-parts notifications (tablets) ---- */
+let audioCtx=null, audioUnlocked=false;
+function unlockAudio(){
+  if(audioUnlocked)return;
+  try{
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    audioUnlocked=true;
+  }catch(e){}
+}
+// unlock on the first user interaction anywhere
+['click','touchstart','keydown'].forEach(ev=>
+  document.addEventListener(ev,unlockAudio,{once:false}));
+
+function playChime(){
+  if(!audioCtx)return;
+  try{
+    const now=audioCtx.currentTime;
+    [880,1320].forEach((f,i)=>{
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='sine';o.frequency.value=f;
+      o.connect(g);g.connect(audioCtx.destination);
+      const t=now+i*0.16;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.3,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+      o.start(t);o.stop(t+0.37);
+    });
+  }catch(e){}
+}
+
+function notifyNewParts(hole, reg, parts){
+  const stack=document.getElementById('notif-stack');
+  const names=parts.map(p=>(p.qty||1)+'× '+p.desc).join(', ');
+  const el=document.createElement('div');
+  el.className='notif';
+  el.innerHTML='<span class="ndot"></span>'+
+    '<span class="ntext"><b>New parts in Bin '+esc(holeLabel(hole))+'</b>'+
+    (reg?' · '+esc(reg):'')+
+    '<span class="nparts">'+esc(names)+'</span></span>'+
+    '<button class="nclose">Dismiss</button>';
+  el.querySelector('.nclose').onclick=()=>el.remove();
+  stack.appendChild(el);
+  playChime();
+}
+
 function showConfirm(title, userName, names, hole, reg){
   document.getElementById('confirm-title').textContent=title;
   const now=new Date();
@@ -629,17 +692,23 @@ document.getElementById('dlg-save').onclick=async()=>{
   render();closeHole();
   await persist(id, hasContent?{reg,make,model,parts}:null);
   // logging
+  const fmtParts=arr=>arr.map(p=>(p.qty||1)+'× '+p.desc).join(', ');
   if(!hasContent){
     await logActivity(id, prev&&prev.reg, 'Emptied hole', null);
   } else if(wasEmpty){
-    const pd = parts.length ? (' · '+parts.length+' part'+(parts.length===1?'':'s')) : '';
-    await logActivity(id, reg, 'Added vehicle', [make,model].filter(Boolean).join(' ')+pd);
+    const vehicle=[make,model].filter(Boolean).join(' ');
+    const pd = parts.length ? (vehicle?' · ':'')+'Parts: '+fmtParts(parts) : '';
+    await logActivity(id, reg, 'Added vehicle', vehicle+pd);
   } else {
-    // edited: note part count change if any
-    const diff=parts.length-prevParts.length;
+    // edited: list parts actually added or removed
+    const prevKeys=prevParts.map(p=>(p.qty||1)+'× '+p.desc);
+    const nowKeys=parts.map(p=>(p.qty||1)+'× '+p.desc);
+    const added=nowKeys.filter(k=>!prevKeys.includes(k));
+    const removed=prevKeys.filter(k=>!nowKeys.includes(k));
     let detail='Updated details';
-    if(diff>0)detail=diff+' part'+(diff===1?'':'s')+' added';
-    else if(diff<0)detail=(-diff)+' part'+(diff===-1?'':'s')+' removed';
+    if(added.length&&removed.length)detail='Added: '+added.join(', ')+' · Removed: '+removed.join(', ');
+    else if(added.length)detail='Added: '+added.join(', ');
+    else if(removed.length)detail='Removed: '+removed.join(', ');
     await logActivity(id, reg, 'Edited hole', detail);
   }
 };
@@ -1107,15 +1176,28 @@ function subscribe(){
       }
       const r=payload.new;
       if(!r||!r.hole)return;
+      // Detect newly-added parts (for tech notification on tablets).
+      const incoming = Array.isArray(r.parts) ? r.parts : [];
+      const before = (state[r.hole] && Array.isArray(state[r.hole].parts)) ? state[r.hole].parts : [];
+      const beforeKeys = before.map(p=>(p.qty||1)+'× '+p.desc);
+      const newlyAdded = incoming.filter(p=>{
+        const key=(p.qty||1)+'× '+p.desc;
+        const idx=beforeKeys.indexOf(key);
+        if(idx>=0){beforeKeys.splice(idx,1);return false;}  // matched an existing one
+        return p.status!=='collected';   // genuinely new, not collected
+      });
       // Treat a blanked row as empty so the cell clears live.
-      const parts = Array.isArray(r.parts) ? r.parts : [];
-      if(r.reg||r.make||r.model||parts.length){
-        state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts};
+      if(r.reg||r.make||r.model||incoming.length){
+        state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts:incoming};
       } else {
         delete state[r.hole];
       }
       render();
       setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
+      // Only notify on tablets in TV mode, and only when parts were genuinely added.
+      if(newlyAdded.length && !document.body.classList.contains('admin')){
+        notifyNewParts(r.hole, r.reg, newlyAdded);
+      }
     })
     .subscribe(status=>{
       if(status==='SUBSCRIBED')setStatus('Live','live');
