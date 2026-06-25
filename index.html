@@ -106,6 +106,12 @@
   body.tv .hole .parts-count{font-size:18px}
   .hole.expanded{position:relative;z-index:40;box-shadow:0 14px 40px rgba(20,24,33,.22);
     border-color:var(--accent);background:var(--panel);max-height:80vh;overflow-y:auto}
+  .hole.hasnew{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,224,.35)}
+  .hole .newdot{position:absolute;top:10px;left:12px;background:var(--accent);color:#fff;
+    font-size:12px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:20px;
+    animation:newPulse 1.2s infinite;z-index:2}
+  @keyframes newPulse{0%,100%{box-shadow:0 0 0 0 rgba(31,111,224,.55)}50%{box-shadow:0 0 0 8px rgba(31,111,224,0)}}
+  body.tv .hole .newdot{font-size:15px;padding:4px 12px}
   .hole .part{font-size:14px;color:var(--text);line-height:1.25;display:flex;align-items:center;gap:7px}
   .hole .part .ptext{flex:1}
   .hole .part .q{color:var(--accent);font-weight:700}
@@ -406,6 +412,7 @@ function holeLabel(id){return String(id).replace(/^U\d+-/,'');}
 
 let expandedHole=null;       // which hole is currently expanded (TV mode)
 let expandTimer=null;
+let newPartBins={};          // hole id -> true when new parts await a tech's view
 
 function render(){
   holeEls.forEach(el=>{
@@ -418,6 +425,7 @@ function render(){
     if(hasContent){
       el.classList.add('filled');
       if(isExpanded) el.classList.add('expanded');
+      if(newPartBins[id]) el.classList.add('hasnew');
       const big = d.reg || [d.make,d.model].filter(Boolean).join(' ') || '—';
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
       let body='';
@@ -445,7 +453,9 @@ function render(){
         const label= coll? onShelf+' on shelf · '+coll+' collected' : total+(total===1?' item':' items');
         body='<div class="parts-count">'+label+' ›</div>';
       }
-      el.innerHTML='<span class="tag">'+holeLabel(id)+'</span><div class="reg">'+esc(big)+'</div>'+
+      el.innerHTML='<span class="tag">'+holeLabel(id)+'</span>'+
+        (newPartBins[id]?'<span class="newdot" title="New parts added">NEW</span>':'')+
+        '<div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
         body+
         '<span class="edit-hint">Tap reg to edit</span>';
@@ -465,7 +475,8 @@ function collapseExpanded(){
 function expandHole(id){
   const d=state[id];
   const parts=(d&&Array.isArray(d.parts))?d.parts.filter(p=>p&&p.desc):[];
-  if(!parts.length)return;           // nothing to expand
+  if(newPartBins[id]){delete newPartBins[id];}   // tech has seen it
+  if(!parts.length){render();return;}            // nothing to expand (but clear dot)
   if(expandedHole===id){collapseExpanded();return;}  // tap again = collapse
   expandedHole=id;render();
   if(expandTimer)clearTimeout(expandTimer);
@@ -1219,7 +1230,9 @@ function subscribe(){
       setStatus('Updated · '+new Date().toLocaleTimeString(),'live');
       // Only notify on tablets in TV mode, and only when parts were genuinely added.
       if(newlyAdded.length && !document.body.classList.contains('admin')){
+        newPartBins[r.hole]=true;
         notifyNewParts(r.hole, r.reg, newlyAdded);
+        render();
       }
     })
     .subscribe(status=>{
@@ -1237,6 +1250,26 @@ function init(){
   }
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   loadAll().then(subscribe);
+
+  // When the tablet wakes / app regains focus, re-sync and flag any bins that
+  // gained parts while we were suspended (so the dot is reliable without push).
+  async function wakeRefresh(){
+    if(!sb||document.body.classList.contains('admin'))return;
+    const prev={};
+    Object.keys(state).forEach(h=>{
+      prev[h]=(state[h].parts||[]).map(p=>(p.qty||1)+'× '+p.desc);
+    });
+    await loadAll();
+    Object.keys(state).forEach(h=>{
+      const before=prev[h]||[];
+      const now=(state[h].parts||[]).filter(p=>p.status!=='collected').map(p=>(p.qty||1)+'× '+p.desc);
+      const gained=now.some(k=>{const i=before.indexOf(k);if(i>=0){before.splice(i,1);return false;}return true;});
+      if(gained)newPartBins[h]=true;
+    });
+    render();
+  }
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden)wakeRefresh(); });
+  window.addEventListener('focus',wakeRefresh);
   loadReturns().then(subscribeReturns);
   loadLog().then(subscribeLog);
   loadCatalog();
