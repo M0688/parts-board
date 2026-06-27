@@ -67,6 +67,13 @@
   #log-panel .logitem .lt{color:var(--muted);font-size:11px;white-space:nowrap}
   #log-panel .lmeta{color:var(--muted);font-size:12px}
   #btn-returns{position:relative;border-color:var(--accent);color:var(--accent);font-weight:700}
+  #btn-requests{position:relative;border-color:var(--accent);color:var(--accent);font-weight:700}
+  #btn-requests.has{background:var(--accent);color:#fff;animation:pulse 1.5s infinite}
+  .hole .request-btn{margin-top:8px;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;
+    border-radius:7px;cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent);
+    align-self:flex-start}
+  .hole .request-btn:hover{background:var(--accent);color:#fff}
+  body.tv .hole .request-btn{font-size:15px;padding:9px 14px}
   #btn-returns.has{background:var(--accent);color:#fff;animation:pulse 1.5s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(31,111,224,.4)}50%{box-shadow:0 0 0 6px rgba(31,111,224,0)}}
   .returns-panel{position:fixed;top:64px;right:18px;width:340px;max-height:70vh;overflow:auto;
@@ -244,6 +251,7 @@
   </div>
   <div class="right">
     <button id="btn-returns" title="Pending returns" style="display:none">🔔 <span id="returns-count">0</span></button>
+    <button id="btn-requests" title="Part requests" style="display:none">📥 <span id="requests-count">0</span></button>
     <button id="btn-log" title="Activity log" style="display:none">📋 Log</button>
     <button id="btn-catalog" title="Manage parts catalogue" style="display:none">🔧 Parts</button>
     <button id="btn-users" title="Manage users" style="display:none">👤 Users</button>
@@ -293,6 +301,14 @@
     <button id="rp-close">✕</button>
   </div>
   <div id="returns-list"></div>
+</div>
+
+<div class="returns-panel" id="requests-panel">
+  <div class="rp-head">
+    <strong>Part requests</strong>
+    <button id="requests-close">✕</button>
+  </div>
+  <div id="requests-list"></div>
 </div>
 
 <div class="stage" id="stage">
@@ -356,6 +372,23 @@
 <div class="toast" id="toast"></div>
 
 <div id="notif-stack"></div>
+
+<div class="overlay" id="request-overlay">
+  <div class="dialog">
+    <h3 id="request-title">Request a part</h3>
+    <p class="sub">Send a part request to the office.</p>
+    <div class="field"><label>Part</label>
+      <input id="req-desc" list="parts-datalist" placeholder="Search or type a part…" autocomplete="off"></div>
+    <div class="field"><label>Part number (optional)</label>
+      <input id="req-no" placeholder="e.g. 1234-AB" autocomplete="off"></div>
+    <div class="field"><label>Quantity</label>
+      <input id="req-qty" type="number" min="1" value="1"></div>
+    <div class="actions">
+      <button class="cancel" id="req-cancel">Cancel</button>
+      <button class="save" id="req-send">Send request</button>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="pin-overlay">
   <div class="dialog pin-dialog">
@@ -453,15 +486,19 @@ function render(){
         const label= coll? onShelf+' on shelf · '+coll+' collected' : total+(total===1?' item':' items');
         body='<div class="parts-count">'+label+' ›</div>';
       }
+      const reqBtn = isExpanded ? '<button class="request-btn" data-hole="'+id+'">Request a part</button>' : '';
       el.innerHTML='<span class="tag">'+holeLabel(id)+'</span>'+
         (newPartBins[id]?'<span class="newdot" title="New parts added">NEW</span>':'')+
         '<div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
-        body+
+        body+reqBtn+
         '<span class="edit-hint">Tap reg to edit</span>';
     } else {
       el.classList.add('empty');
+      if(isExpanded) el.classList.add('expanded');
+      const reqBtn = isExpanded ? '<button class="request-btn" data-hole="'+id+'">Request a part</button>' : '';
       el.innerHTML='<span class="tag">'+holeLabel(id)+'</span><div class="reg">Empty</div>'+
+        reqBtn+
         '<span class="edit-hint">Tap to fill</span>';
     }
   });
@@ -474,9 +511,7 @@ function collapseExpanded(){
 }
 function expandHole(id){
   const d=state[id];
-  const parts=(d&&Array.isArray(d.parts))?d.parts.filter(p=>p&&p.desc):[];
   if(newPartBins[id]){delete newPartBins[id];}   // tech has seen it
-  if(!parts.length){render();return;}            // nothing to expand (but clear dot)
   if(expandedHole===id){collapseExpanded();return;}  // tap again = collapse
   expandedHole=id;render();
   if(expandTimer)clearTimeout(expandTimer);
@@ -536,7 +571,7 @@ function closeHole(){overlay.classList.remove('show');activeHole=null;}
 //  - Admin mode: tap reg/empty area opens the edit dialog (part controls excluded).
 //  - TV mode: tap expands/collapses the hole to show parts.
 holeEls.forEach(el=>el.addEventListener('click',e=>{
-  if(e.target.closest('.pcheck,.pbtn,.collect-btn'))return;  // let controls work
+  if(e.target.closest('.pcheck,.pbtn,.collect-btn,.request-btn'))return;  // let controls work
   if(document.body.classList.contains('admin')){
     openHole(el.dataset.hole);
   } else {
@@ -574,7 +609,38 @@ function wireCellControls(){
     await logActivity(hole, d.reg, 'Return requested', nm);
     showConfirm('Return requested', '', [nm], hole, d.reg);
   });
+  document.querySelectorAll('.request-btn').forEach(btn=>btn.onclick=(e)=>{
+    e.stopPropagation();
+    openRequest(btn.dataset.hole);
+  });
 }
+
+/* ---- Part requests (tech → admin) ---- */
+let requestHole=null;
+function openRequest(hole){
+  requestHole=hole;
+  document.getElementById('request-title').textContent='Request a part — Bin '+holeLabel(hole);
+  document.getElementById('req-desc').value='';
+  document.getElementById('req-no').value='';
+  document.getElementById('req-qty').value='1';
+  document.getElementById('request-overlay').classList.add('show');
+  setTimeout(()=>document.getElementById('req-desc').focus(),50);
+}
+function closeRequest(){document.getElementById('request-overlay').classList.remove('show');requestHole=null;}
+document.getElementById('req-cancel').onclick=closeRequest;
+document.getElementById('request-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('request-overlay'))closeRequest();});
+document.getElementById('req-send').onclick=async()=>{
+  const desc=document.getElementById('req-desc').value.trim();
+  const partNo=document.getElementById('req-no').value.trim();
+  const qty=parseInt(document.getElementById('req-qty').value)||1;
+  if(!desc){toast('Pick or type a part');return;}
+  const hole=requestHole;
+  const d=state[hole]||{};
+  closeRequest();
+  await sendRequest(hole, d.reg, desc, partNo, qty);
+  showConfirm('Request sent', '', [qty+'× '+desc+(partNo?' ('+partNo+')':'')], hole, d.reg);
+};
 
 /* ---- PIN prompt ---- */
 let pinCallback=null;
@@ -761,7 +827,7 @@ function enterAdmin(){document.body.classList.remove('tv');document.body.classLi
   btnAdmin.classList.add('active');btnTv.classList.remove('active');
   document.getElementById('btn-log').style.display='';
   document.getElementById('btn-catalog').style.display='';
-  document.getElementById('btn-users').style.display='';renderReturns();render();}
+  document.getElementById('btn-users').style.display='';renderReturns();renderRequests();render();}
 btnAdmin.onclick=()=>{
   if(document.body.classList.contains('admin'))return;
   if(!adminUnlocked){
@@ -777,10 +843,12 @@ btnTv.onclick=()=>{document.body.classList.remove('admin');document.body.classLi
   document.getElementById('btn-log').style.display='none';
   document.getElementById('btn-catalog').style.display='none';
   document.getElementById('btn-users').style.display='none';
+  document.getElementById('btn-requests').style.display='none';
   document.getElementById('returns-panel').classList.remove('show');
+  document.getElementById('requests-panel').classList.remove('show');
   document.getElementById('log-panel').classList.remove('show');
   document.getElementById('catalog-panel').classList.remove('show');
-  document.getElementById('users-panel').classList.remove('show');renderReturns();render();};
+  document.getElementById('users-panel').classList.remove('show');renderReturns();renderRequests();render();};
 document.getElementById('btn-full').onclick=()=>{
   if(!document.fullscreenElement)document.documentElement.requestFullscreen();
   else document.exitFullscreen();};
@@ -809,6 +877,69 @@ let activity=[];
 let returns=[];
 let users=[];
 let collections=[];
+let requests=[];
+
+/* ---- Part requests data ---- */
+async function sendRequest(hole, reg, desc, partNo, qty){
+  if(!sb){toast('No connection');return;}
+  try{
+    const { error } = await sb.from('requests').insert({
+      hole, reg:reg||'', part_desc:desc, part_no:partNo||null, qty:qty||1
+    });
+    if(error)throw error;
+    await logActivity(hole, reg, 'Part requested', qty+'× '+desc+(partNo?' ('+partNo+')':''));
+  }catch(e){console.error(e);toast('Request failed');}
+}
+async function loadRequests(){
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('requests').select('*').order('created_at',{ascending:false});
+    if(error)throw error;
+    requests=data||[];
+    renderRequests();
+  }catch(e){console.error(e);}
+}
+async function clearRequest(rid){
+  if(!sb)return;
+  try{
+    await sb.from('requests').delete().eq('id',rid);
+    requests=requests.filter(r=>r.id!==rid);
+    renderRequests();
+  }catch(e){console.error(e);}
+}
+function renderRequests(){
+  const btn=document.getElementById('btn-requests');
+  const count=document.getElementById('requests-count');
+  const list=document.getElementById('requests-list');
+  if(!btn)return;
+  count.textContent=requests.length;
+  const inAdmin=document.body.classList.contains('admin');
+  btn.style.display=inAdmin?'':'none';
+  btn.classList.toggle('has',requests.length>0);
+  if(!list)return;
+  if(!requests.length){list.innerHTML='<div class="empty-note">No part requests.</div>';return;}
+  list.innerHTML=requests.map(r=>
+    '<div class="ritem"><div class="rt"><b>'+esc(String(r.qty||1))+'×</b> '+esc(r.part_desc)+
+    (r.part_no?' <span class="upin">#'+esc(r.part_no)+'</span>':'')+'</div>'+
+    '<div class="rmeta">Bin '+esc(holeLabel(r.hole||''))+(r.reg?' · '+esc(r.reg):'')+
+      ' · '+new Date(r.created_at).toLocaleString()+'</div>'+
+    '<button data-id="'+r.id+'">Mark processed</button></div>'
+  ).join('');
+  list.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>clearRequest(b.dataset.id));
+}
+function subscribeRequests(){
+  sb.channel('requests-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'requests'},payload=>{
+      if(payload.eventType==='INSERT'){
+        requests.unshift(payload.new);
+        if(document.body.classList.contains('admin'))toast('New part request');
+      } else if(payload.eventType==='DELETE'){
+        const oid=(payload.old||{}).id;
+        if(oid)requests=requests.filter(r=>r.id!==oid); else {loadRequests();return;}
+      }
+      renderRequests();
+    }).subscribe();
+}
 
 /* ---- Users ---- */
 async function loadUsers(){
@@ -1183,6 +1314,11 @@ document.getElementById('btn-returns').onclick=()=>{
 document.getElementById('rp-close').onclick=()=>{
   document.getElementById('returns-panel').classList.remove('show');
 };
+document.getElementById('btn-requests').onclick=()=>{
+  const p=document.getElementById('requests-panel');p.classList.toggle('show');
+  if(p.classList.contains('show'))renderRequests();
+};
+document.getElementById('requests-close').onclick=()=>document.getElementById('requests-panel').classList.remove('show');
 
 async function loadAll(){
   try{
@@ -1271,6 +1407,7 @@ function init(){
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden)wakeRefresh(); });
   window.addEventListener('focus',wakeRefresh);
   loadReturns().then(subscribeReturns);
+  loadRequests().then(subscribeRequests);
   loadLog().then(subscribeLog);
   loadCatalog();
   loadUsers();
