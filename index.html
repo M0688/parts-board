@@ -109,6 +109,11 @@
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
   .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+  .hole .select-all{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);
+    padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line);cursor:pointer}
+  .hole .select-all .pcheckall{width:20px;height:20px;cursor:pointer;accent-color:var(--accent)}
+  body.tv .hole .select-all{font-size:16px}
+  body.tv .hole .select-all .pcheckall{width:24px;height:24px}
   .hole .parts-count{margin-top:8px;font-size:14px;font-weight:600;color:var(--accent);cursor:pointer}
   body.tv .hole .parts-count{font-size:18px}
   .hole.expanded{position:relative;z-index:40;box-shadow:0 14px 40px rgba(20,24,33,.22);
@@ -474,9 +479,13 @@ function render(){
             ret+'</div>';
         }).join('');
         const anyUncollected = parts.some(p=>p.status!=='collected');
+        const uncollected = parts.filter(p=>p.status!=='collected');
+        const allTicked = uncollected.length>0 && uncollected.every(p=>p.checked);
+        const selectAll = uncollected.length>1 ?
+          '<label class="select-all"><input type="checkbox" class="pcheckall" data-hole="'+id+'"'+(allTicked?' checked':'')+'> Select all</label>' : '';
         const collectBtn = anyUncollected ?
           '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
-        body='<div class="parts">'+rows+collectBtn+'</div>';
+        body='<div class="parts">'+selectAll+rows+collectBtn+'</div>';
       } else if(parts.length){
         // collapsed: total quantity, not number of part types
         const sumQty=arr=>arr.reduce((t,p)=>t+(parseInt(p.qty)||1),0);
@@ -571,7 +580,7 @@ function closeHole(){overlay.classList.remove('show');activeHole=null;}
 //  - Admin mode: tap reg/empty area opens the edit dialog (part controls excluded).
 //  - TV mode: tap expands/collapses the hole to show parts.
 holeEls.forEach(el=>el.addEventListener('click',e=>{
-  if(e.target.closest('.pcheck,.pbtn,.collect-btn,.request-btn'))return;  // let controls work
+  if(e.target.closest('.pcheck,.pcheckall,.select-all,.pbtn,.collect-btn,.request-btn'))return;  // let controls work
   if(document.body.classList.contains('admin')){
     openHole(el.dataset.hole);
   } else {
@@ -585,6 +594,15 @@ function wireCellControls(){
     const hole=cb.dataset.hole, i=parseInt(cb.dataset.i);
     const d=state[hole]; if(!d||!d.parts[i])return;
     d.parts[i].checked=cb.checked;  // local only, no save needed yet
+    // keep the select-all box in sync
+    const allBox=document.querySelector('.pcheckall[data-hole="'+CSS.escape(hole)+'"]');
+    if(allBox){const unc=d.parts.filter(p=>p.status!=='collected');allBox.checked=unc.length>0&&unc.every(p=>p.checked);}
+  });
+  document.querySelectorAll('.pcheckall').forEach(cb=>cb.onchange=()=>{
+    const hole=cb.dataset.hole; const d=state[hole]; if(!d)return;
+    d.parts.forEach(p=>{ if(p.status!=='collected')p.checked=cb.checked; });
+    // update the individual checkboxes in place without full re-render
+    document.querySelectorAll('.pcheck[data-hole="'+CSS.escape(hole)+'"]').forEach(box=>{box.checked=cb.checked;});
   });
   document.querySelectorAll('.collect-btn').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole; const d=state[hole]; if(!d)return;
