@@ -166,6 +166,12 @@
     background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
   .field input:focus{outline:none;border-color:var(--accent)}
   .field input.reg-input{text-transform:uppercase;font-weight:700;letter-spacing:1px}
+  .reg-row{display:flex;gap:8px}
+  .reg-row input{flex:1}
+  .lookup-btn{font:inherit;font-size:13px;padding:0 14px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line-2);background:transparent;color:var(--text);white-space:nowrap;transition:.15s}
+  .lookup-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .lookup-btn:disabled{opacity:.5;cursor:default;border-color:var(--line-2);color:var(--muted)}
   .parts-edit{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
   .parts-edit:empty{display:none}
   .parts-edit .row{display:flex;align-items:center;gap:8px;background:var(--bg);
@@ -350,7 +356,11 @@
     <p class="sub">Set the vehicle stored in this hole.</p>
     <div class="dlg-body">
     <div class="field"><label>Registration</label>
-      <input id="in-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
+      <div class="reg-row">
+        <input id="in-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off">
+        <button type="button" id="btn-lookup" class="lookup-btn">Look up</button>
+      </div>
+    </div>
     <div class="field"><label>Make</label>
       <input id="in-make" placeholder="Citroen" autocomplete="off"></div>
     <div class="field"><label>Model</label>
@@ -426,7 +436,7 @@
    1) PASTE YOUR TWO SUPABASE VALUES HERE
    ============================================================ */
 const SUPABASE_URL = "https://zdpvgauiqrelpwmppqmv.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkcHZnYXVpcXJlbHB3bXBwcW12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTkxMDUsImV4cCI6MjA5NzI5NTEwNX0.VMQSzIl2PQsSJWyQkKT694CXHIMhianFgNx-2SqOlC8";
+const SUPABASE_ANON_KEY = "eyJhbGci••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";
 
 /* Admin password — change this to whatever you want */
 const ADMIN_PASSWORD = "1911";
@@ -792,6 +802,32 @@ document.getElementById('confirm-ok').onclick=()=>{
 };
 document.getElementById('dlg-cancel').onclick=closeHole;
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
+
+const btnLookup=document.getElementById('btn-lookup');
+btnLookup.onclick=async()=>{
+  const reg=document.getElementById('in-reg').value.trim().toUpperCase();
+  if(!reg){toast('Enter a registration first');return;}
+  if(!sb){toast('No connection');return;}
+  btnLookup.disabled=true;btnLookup.textContent='Looking up…';
+  try{
+    const { data, error } = await sb.functions.invoke('reg-lookup', { body:{ registration: reg } });
+    if(error){
+      let msg='Lookup failed';
+      try{ const body=await error.context.json(); if(body&&body.error)msg=body.error; }catch{}
+      toast(msg);
+      return;
+    }
+    if(data.make)document.getElementById('in-make').value=data.make;
+    if(data.model)document.getElementById('in-model').value=data.model;
+    const extra=[data.colour,data.fuelType].filter(Boolean).join(' · ');
+    toast(extra?('Found: '+extra):'Found vehicle');
+  }catch(e){
+    console.error(e);
+    toast('Lookup failed');
+  }finally{
+    btnLookup.disabled=false;btnLookup.textContent='Look up';
+  }
+};
 
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
