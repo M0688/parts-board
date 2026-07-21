@@ -108,6 +108,8 @@
   .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word;padding-right:54px}
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
+  .hole .cf{font-size:13px;color:var(--muted);line-height:1.2;opacity:.8}
+  body.tv .hole .cf{font-size:16px}
   .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:5px}
   .hole .select-all{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);
     padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line);cursor:pointer}
@@ -365,6 +367,10 @@
       <input id="in-make" placeholder="Citroen" autocomplete="off"></div>
     <div class="field"><label>Model</label>
       <input id="in-model" placeholder="C3" autocomplete="off"></div>
+    <div class="field"><label>Colour</label>
+      <input id="in-colour" placeholder="Blue" autocomplete="off"></div>
+    <div class="field"><label>Fuel type</label>
+      <input id="in-fuel" placeholder="Petrol" autocomplete="off"></div>
     <div class="field">
       <label>Parts in this hole</label>
       <div id="parts-list" class="parts-edit"></div>
@@ -476,6 +482,7 @@ function render(){
       if(newPartBins[id]) el.classList.add('hasnew');
       const big = d.reg || [d.make,d.model].filter(Boolean).join(' ') || '—';
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
+      const cf = [d.colour,d.fuelType].filter(Boolean).join(' · ');
       let body='';
       if(parts.length && isExpanded){
         const rows = parts.map((p,i)=>{
@@ -510,6 +517,7 @@ function render(){
         (newPartBins[id]?'<span class="newdot" title="New parts added">NEW</span>':'')+
         '<div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
+        (cf?'<div class="cf">'+esc(cf)+'</div>':'')+
         body+reqBtn+
         '<span class="edit-hint">Tap reg to edit</span>';
     } else {
@@ -578,6 +586,8 @@ function openHole(id){
   document.getElementById('in-reg').value=d.reg||'';
   document.getElementById('in-make').value=d.make||'';
   document.getElementById('in-model').value=d.model||'';
+  document.getElementById('in-colour').value=d.colour||'';
+  document.getElementById('in-fuel').value=d.fuelType||'';
   editParts = Array.isArray(d.parts) ? d.parts.map(p=>({desc:p.desc,qty:p.qty||1,status:p.status||'onshelf'})) : [];
   document.getElementById('in-part-desc').value='';
   document.getElementById('in-part-qty').value='1';
@@ -621,7 +631,7 @@ function wireCellControls(){
     const names=[];
     d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;names.push((p.qty||1)+'× '+p.desc);} });
     render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,colour:d.colour,fuelType:d.fuelType,parts:d.parts});
     await logActivity(hole, d.reg, 'Collected', names.join(', '));
     showConfirm('Parts collected', '', names, hole, d.reg);
   });
@@ -632,7 +642,7 @@ function wireCellControls(){
     await requestReturn(hole, d.reg, part);
     part.status='onshelf'; part.checked=false;
     render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,colour:d.colour,fuelType:d.fuelType,parts:d.parts});
     const nm=(part.qty||1)+'× '+part.desc;
     await logActivity(hole, d.reg, 'Return requested', nm);
     showConfirm('Return requested', '', [nm], hole, d.reg);
@@ -819,8 +829,9 @@ btnLookup.onclick=async()=>{
     }
     if(data.make)document.getElementById('in-make').value=data.make;
     if(data.model)document.getElementById('in-model').value=data.model;
-    const extra=[data.colour,data.fuelType].filter(Boolean).join(' · ');
-    toast(extra?('Found: '+extra):'Found vehicle');
+    if(data.colour)document.getElementById('in-colour').value=data.colour;
+    if(data.fuelType)document.getElementById('in-fuel').value=data.fuelType;
+    toast('Found vehicle');
   }catch(e){
     console.error(e);
     toast('Lookup failed');
@@ -836,15 +847,17 @@ document.getElementById('dlg-save').onclick=async()=>{
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
   const make=document.getElementById('in-make').value.trim();
   const model=document.getElementById('in-model').value.trim();
+  const colour=document.getElementById('in-colour').value.trim();
+  const fuelType=document.getElementById('in-fuel').value.trim();
   const parts=editParts.slice();
   const id=activeHole;
   const prev=state[id];
   const prevParts=(prev&&Array.isArray(prev.parts))?prev.parts:[];
   const wasEmpty=!(prev&&(prev.reg||prev.make||prev.model||prevParts.length));
   const hasContent = reg||make||model||parts.length;
-  if(hasContent){state[id]={reg,make,model,parts};} else {delete state[id];}
+  if(hasContent){state[id]={reg,make,model,colour,fuelType,parts};} else {delete state[id];}
   render();closeHole();
-  await persist(id, hasContent?{reg,make,model,parts}:null);
+  await persist(id, hasContent?{reg,make,model,colour,fuelType,parts}:null);
   // logging
   const fmtParts=arr=>arr.map(p=>(p.qty||1)+'× '+p.desc).join(', ');
   if(!hasContent){
@@ -918,8 +931,8 @@ async function persist(id, data){
   try{
     // Always upsert (never delete) so realtime fires reliably for every change.
     const row = data
-      ? { hole:id, reg:data.reg, make:data.make, model:data.model, parts:data.parts||[], updated_at:new Date().toISOString() }
-      : { hole:id, reg:'', make:'', model:'', parts:[], updated_at:new Date().toISOString() };
+      ? { hole:id, reg:data.reg, make:data.make, model:data.model, colour:data.colour||'', fuel_type:data.fuelType||'', parts:data.parts||[], updated_at:new Date().toISOString() }
+      : { hole:id, reg:'', make:'', model:'', colour:'', fuel_type:'', parts:[], updated_at:new Date().toISOString() };
     const { error } = await sb.from(TABLE).upsert(row);
     if(error)throw error;
     toast('Saved');
@@ -1381,7 +1394,7 @@ async function loadAll(){
     state={};
     (data||[]).forEach(r=>{
       const parts = Array.isArray(r.parts) ? r.parts : [];
-      if(r.reg||r.make||r.model||parts.length){state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts};}
+      if(r.reg||r.make||r.model||parts.length){state[r.hole]={reg:r.reg,make:r.make,model:r.model,colour:r.colour,fuelType:r.fuel_type,parts};}
     });
     render();
     setStatus('Live','live');
@@ -1412,7 +1425,7 @@ function subscribe(){
       });
       // Treat a blanked row as empty so the cell clears live.
       if(r.reg||r.make||r.model||incoming.length){
-        state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts:incoming};
+        state[r.hole]={reg:r.reg,make:r.make,model:r.model,colour:r.colour,fuelType:r.fuel_type,parts:incoming};
       } else {
         delete state[r.hole];
       }
