@@ -54,6 +54,27 @@
   .cal-cell.today .cal-num{color:var(--accent)}
   .cal-booking{background:var(--accent);color:#fff;border-radius:6px;padding:3px 6px;font-size:12px;
     line-height:1.25;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal-cell.expanded-day{grid-column:1 / -1;min-height:auto;cursor:default;
+    box-shadow:0 10px 30px rgba(20,24,33,.18);border-color:var(--accent)}
+  .day-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .day-head .day-title{font-size:17px;font-weight:700;flex:1}
+  .day-head .day-close{border:none;background:none;cursor:pointer;color:var(--muted);font-size:16px}
+  .day-head .day-close:hover{color:var(--bad)}
+  .day-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .day-col{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .day-col-h{font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .day-job{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:8px;padding:8px 10px;margin-bottom:8px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+  .day-job:hover{border-color:var(--accent)}
+  .day-job .dj-tech{font-weight:700;font-size:14px}
+  .day-job .dj-all{font-size:11px;color:var(--muted);font-weight:600}
+  .day-job .dj-reg{font-weight:700;font-size:15px;letter-spacing:.5px}
+  .day-job .dj-cust{font-size:13px;color:var(--text)}
+  .day-job .dj-desc{font-size:13px;color:var(--muted)}
+  .day-empty{color:var(--muted);font-size:14px;padding:6px 0}
+  .day-add{margin-top:4px;font:inherit;font-size:13px;font-weight:600;padding:7px 12px;border-radius:7px;cursor:pointer;
+    border:1px dashed var(--line-2);background:transparent;color:var(--accent);width:100%}
+  .day-add:hover{border-color:var(--accent);border-style:solid}
   .cal-booking.am{background:#1f6fe0}
   .cal-booking.pm{background:#8a5cf6}
   .cal-booking.allday{background:#0e9f6e}
@@ -1477,6 +1498,7 @@ function subscribe(){
 let bookings=[];
 let calDate=new Date();      // month being viewed
 calDate.setDate(1);
+let expandedDay=null;        // date string of the expanded day detail
 
 async function loadBookings(){
   if(!sb)return;
@@ -1529,6 +1551,26 @@ function renderCalendar(){
     if(c.other){html+='<div class="cal-cell other"><span class="cal-num">'+c.day+'</span></div>';return;}
     const dayBookings=bookings.filter(b=>b.date===c.date)
       .sort((a,b)=>({'Morning':0,'All day':1,'Afternoon':2}[a.slot]||3)-({'Morning':0,'All day':1,'Afternoon':2}[b.slot]||3));
+    if(expandedDay===c.date){
+      // Expanded detail: AM | PM columns
+      const amJobs=dayBookings.filter(b=>b.slot==='Morning'||b.slot==='All day');
+      const pmJobs=dayBookings.filter(b=>b.slot==='Afternoon'||b.slot==='All day');
+      const jobRow=b=>'<div class="day-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
+        '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
+        (b.slot==='All day'?' <span class="dj-all">(all day)</span>':'')+
+        (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
+        (b.customer?'<span class="dj-cust">'+esc(b.customer)+'</span>':'')+
+        (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>';
+      const col=(label,jobs,slot)=>'<div class="day-col"><div class="day-col-h">'+label+'</div>'+
+        (jobs.length?jobs.map(jobRow).join(''):'<div class="day-empty">—</div>')+
+        '<button class="day-add" data-date="'+c.date+'" data-slot="'+slot+'">+ Add</button></div>';
+      html+='<div class="cal-cell expanded-day today" data-date="'+c.date+'">'+
+        '<div class="day-head"><span class="cal-num">'+c.day+'</span>'+
+        '<span class="day-title">'+new Date(c.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})+'</span>'+
+        '<button class="day-close">✕</button></div>'+
+        '<div class="day-cols">'+col('Morning',amJobs,'Morning')+col('Afternoon',pmJobs,'Afternoon')+'</div></div>';
+      return;
+    }
     const chips=dayBookings.map(b=>{
       const tag=b.slot==='Morning'?'AM':b.slot==='Afternoon'?'PM':'ALL';
       const col=techColour(b.tech);
@@ -1539,10 +1581,31 @@ function renderCalendar(){
       '<span class="cal-num">'+c.day+'</span>'+chips+'</div>';
   });
   grid.innerHTML=html;
-  // wire cells (admin: double-click to add) and chips (admin: click to edit)
-  grid.querySelectorAll('.cal-cell[data-date]').forEach(cell=>{
-    cell.ondblclick=()=>{ if(document.body.classList.contains('admin'))openBooking(cell.dataset.date,null); };
+  // single-click a day = expand/collapse the detail view
+  grid.querySelectorAll('.cal-cell[data-date]:not(.expanded-day)').forEach(cell=>{
+    cell.onclick=(e)=>{
+      if(e.target.closest('.cal-booking'))return;  // chip handles its own click
+      expandedDay=cell.dataset.date;renderCalendar();
+    };
   });
+  // expanded day: close button, job edit, add buttons
+  grid.querySelectorAll('.expanded-day').forEach(cell=>{
+    const close=cell.querySelector('.day-close');
+    if(close)close.onclick=(e)=>{e.stopPropagation();expandedDay=null;renderCalendar();};
+    cell.querySelectorAll('.day-job').forEach(j=>j.onclick=(e)=>{
+      e.stopPropagation();
+      if(!document.body.classList.contains('admin'))return;
+      const b=bookings.find(x=>x.id===j.dataset.id);
+      if(b)openBooking(b.date,b);
+    });
+    cell.querySelectorAll('.day-add').forEach(btn=>btn.onclick=(e)=>{
+      e.stopPropagation();
+      if(!document.body.classList.contains('admin')){toast('Admin only');return;}
+      openBooking(btn.dataset.date,null);
+      document.getElementById('bk-slot').value=btn.dataset.slot;
+    });
+  });
+  // chips still clickable for quick edit
   grid.querySelectorAll('.cal-booking').forEach(chip=>{
     chip.onclick=(e)=>{
       e.stopPropagation();
@@ -1554,8 +1617,8 @@ function renderCalendar(){
 }
 
 // month nav
-document.getElementById('cal-prev').onclick=()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();};
-document.getElementById('cal-next').onclick=()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();};
+document.getElementById('cal-prev').onclick=()=>{expandedDay=null;calDate.setMonth(calDate.getMonth()-1);renderCalendar();};
+document.getElementById('cal-next').onclick=()=>{expandedDay=null;calDate.setMonth(calDate.getMonth()+1);renderCalendar();};
 document.getElementById('cal-today').onclick=()=>{calDate=new Date();calDate.setDate(1);renderCalendar();};
 
 /* ---- Booking dialog ---- */
