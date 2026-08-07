@@ -32,6 +32,34 @@
     border:1px solid var(--line-2);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
   .right button:hover{color:var(--text);border-color:var(--accent)}
   .right button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .view-tabs{display:flex;gap:6px;margin-left:18px}
+  .view-tabs button{font:inherit;font-size:14px;font-weight:600;color:var(--muted);background:transparent;
+    border:1px solid var(--line-2);padding:7px 16px;border-radius:8px;cursor:pointer}
+  .view-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .diary{padding:22px;max-width:1400px;margin:0 auto}
+  .diary-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .diary-head h2{font-size:22px;flex:1;text-align:center}
+  .diary-head button{font:inherit;font-size:16px;font-weight:600;padding:8px 16px;border-radius:8px;cursor:pointer;
+    border:1px solid var(--line-2);background:var(--panel);color:var(--text)}
+  .diary-head button:hover{border-color:var(--accent)}
+  .diary-head #cal-today{font-size:14px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-dow{font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--muted);text-align:center;padding:6px 0}
+  .cal-cell{min-height:120px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+    padding:6px 7px;display:flex;flex-direction:column;gap:4px;overflow:hidden;cursor:default}
+  .cal-cell.other{background:var(--empty);opacity:.5}
+  .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px rgba(31,111,224,.3)}
+  body.admin .cal-cell{cursor:pointer}
+  .cal-cell .cal-num{font-size:14px;font-weight:700;color:var(--muted)}
+  .cal-cell.today .cal-num{color:var(--accent)}
+  .cal-booking{background:var(--accent);color:#fff;border-radius:6px;padding:3px 6px;font-size:12px;
+    line-height:1.25;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal-booking.am{background:#1f6fe0}
+  .cal-booking.pm{background:#8a5cf6}
+  .cal-booking.allday{background:#0e9f6e}
+  .dialog select{width:100%;font:inherit;font-size:16px;padding:11px 13px;border-radius:9px;
+    background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
+  .dialog select:focus{outline:none;border-color:var(--accent)}
   #btn-log{border-color:var(--line-2);color:var(--muted)}
   #btn-log:hover{border-color:var(--accent);color:var(--text)}
   #btn-catalog{border-color:var(--line-2);color:var(--muted)}
@@ -108,8 +136,6 @@
   .hole .reg{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1.05;word-break:break-word;padding-right:54px}
   .hole.empty .reg{color:#aab4c2;font-size:20px;font-weight:500}
   .hole .mm{font-size:15px;color:var(--muted);line-height:1.2}
-  .hole .cf{font-size:13px;color:var(--muted);line-height:1.2;opacity:.8}
-  body.tv .hole .cf{font-size:16px}
   .hole .parts{margin-top:8px;display:flex;flex-direction:column;gap:5px}
   .hole .select-all{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);
     padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line);cursor:pointer}
@@ -168,12 +194,6 @@
     background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
   .field input:focus{outline:none;border-color:var(--accent)}
   .field input.reg-input{text-transform:uppercase;font-weight:700;letter-spacing:1px}
-  .reg-row{display:flex;gap:8px}
-  .reg-row input{flex:1}
-  .lookup-btn{font:inherit;font-size:13px;padding:0 14px;border-radius:9px;cursor:pointer;
-    border:1px solid var(--line-2);background:transparent;color:var(--text);white-space:nowrap;transition:.15s}
-  .lookup-btn:hover{border-color:var(--accent);color:var(--accent)}
-  .lookup-btn:disabled{opacity:.5;cursor:default;border-color:var(--line-2);color:var(--muted)}
   .parts-edit{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
   .parts-edit:empty{display:none}
   .parts-edit .row{display:flex;align-items:center;gap:8px;background:var(--bg);
@@ -260,6 +280,10 @@
     <span class="dot"></span>
     <div>Parts Location Board
       <small id="status"><span class="conn"></span>Connecting…</small>
+    </div>
+    <div class="view-tabs">
+      <button id="tab-board" class="active">Board</button>
+      <button id="tab-diary">Diary</button>
     </div>
   </div>
   <div class="right">
@@ -352,25 +376,27 @@
   </div>
 </div>
 
+<div class="diary" id="diary" style="display:none">
+  <div class="diary-head">
+    <button id="cal-prev">‹</button>
+    <h2 id="cal-title">Month</h2>
+    <button id="cal-next">›</button>
+    <button id="cal-today">Today</button>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
+
 <div class="overlay" id="overlay">
   <div class="dialog">
     <h3 id="dlg-title">Hole</h3>
     <p class="sub">Set the vehicle stored in this hole.</p>
     <div class="dlg-body">
     <div class="field"><label>Registration</label>
-      <div class="reg-row">
-        <input id="in-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off">
-        <button type="button" id="btn-lookup" class="lookup-btn">Look up</button>
-      </div>
-    </div>
+      <input id="in-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
     <div class="field"><label>Make</label>
       <input id="in-make" placeholder="Citroen" autocomplete="off"></div>
     <div class="field"><label>Model</label>
       <input id="in-model" placeholder="C3" autocomplete="off"></div>
-    <div class="field"><label>Colour</label>
-      <input id="in-colour" placeholder="Blue" autocomplete="off"></div>
-    <div class="field"><label>Fuel type</label>
-      <input id="in-fuel" placeholder="Petrol" autocomplete="off"></div>
     <div class="field">
       <label>Parts in this hole</label>
       <div id="parts-list" class="parts-edit"></div>
@@ -393,6 +419,36 @@
 <div class="toast" id="toast"></div>
 
 <div id="notif-stack"></div>
+
+<div class="overlay" id="booking-overlay">
+  <div class="dialog">
+    <h3 id="booking-title">New booking</h3>
+    <p class="sub" id="booking-date-sub"></p>
+    <div class="dlg-body">
+      <div class="field"><label>Technician</label>
+        <select id="bk-tech"></select></div>
+      <div class="field"><label>Slot</label>
+        <select id="bk-slot">
+          <option value="Morning">Morning</option>
+          <option value="Afternoon">Afternoon</option>
+          <option value="All day">All day</option>
+        </select></div>
+      <div class="field"><label>Registration</label>
+        <input id="bk-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
+      <div class="field"><label>Customer name</label>
+        <input id="bk-name" placeholder="Name" autocomplete="off"></div>
+      <div class="field"><label>Phone</label>
+        <input id="bk-phone" placeholder="Phone" autocomplete="off"></div>
+      <div class="field"><label>Job details</label>
+        <input id="bk-job" placeholder="e.g. Full service" autocomplete="off"></div>
+    </div>
+    <div class="actions">
+      <button class="clear" id="bk-delete" style="display:none">Delete</button>
+      <button class="cancel" id="bk-cancel">Cancel</button>
+      <button class="save" id="bk-save">Save booking</button>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="request-overlay">
   <div class="dialog">
@@ -482,7 +538,6 @@ function render(){
       if(newPartBins[id]) el.classList.add('hasnew');
       const big = d.reg || [d.make,d.model].filter(Boolean).join(' ') || '—';
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
-      const cf = [d.colour,d.fuelType].filter(Boolean).join(' · ');
       let body='';
       if(parts.length && isExpanded){
         const rows = parts.map((p,i)=>{
@@ -517,7 +572,6 @@ function render(){
         (newPartBins[id]?'<span class="newdot" title="New parts added">NEW</span>':'')+
         '<div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
-        (cf?'<div class="cf">'+esc(cf)+'</div>':'')+
         body+reqBtn+
         '<span class="edit-hint">Tap reg to edit</span>';
     } else {
@@ -586,8 +640,6 @@ function openHole(id){
   document.getElementById('in-reg').value=d.reg||'';
   document.getElementById('in-make').value=d.make||'';
   document.getElementById('in-model').value=d.model||'';
-  document.getElementById('in-colour').value=d.colour||'';
-  document.getElementById('in-fuel').value=d.fuelType||'';
   editParts = Array.isArray(d.parts) ? d.parts.map(p=>({desc:p.desc,qty:p.qty||1,status:p.status||'onshelf'})) : [];
   document.getElementById('in-part-desc').value='';
   document.getElementById('in-part-qty').value='1';
@@ -631,7 +683,7 @@ function wireCellControls(){
     const names=[];
     d.parts.forEach(p=>{ if(p.checked && p.status!=='collected'){p.status='collected';p.checked=false;names.push((p.qty||1)+'× '+p.desc);} });
     render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,colour:d.colour,fuelType:d.fuelType,parts:d.parts});
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
     await logActivity(hole, d.reg, 'Collected', names.join(', '));
     showConfirm('Parts collected', '', names, hole, d.reg);
   });
@@ -642,7 +694,7 @@ function wireCellControls(){
     await requestReturn(hole, d.reg, part);
     part.status='onshelf'; part.checked=false;
     render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,colour:d.colour,fuelType:d.fuelType,parts:d.parts});
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
     const nm=(part.qty||1)+'× '+part.desc;
     await logActivity(hole, d.reg, 'Return requested', nm);
     showConfirm('Return requested', '', [nm], hole, d.reg);
@@ -813,33 +865,6 @@ document.getElementById('confirm-ok').onclick=()=>{
 document.getElementById('dlg-cancel').onclick=closeHole;
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeHole();});
 
-const btnLookup=document.getElementById('btn-lookup');
-btnLookup.onclick=async()=>{
-  const reg=document.getElementById('in-reg').value.trim().toUpperCase();
-  if(!reg){toast('Enter a registration first');return;}
-  if(!sb){toast('No connection');return;}
-  btnLookup.disabled=true;btnLookup.textContent='Looking up…';
-  try{
-    const { data, error } = await sb.functions.invoke('reg-lookup', { body:{ registration: reg } });
-    if(error){
-      let msg='Lookup failed';
-      try{ const body=await error.context.json(); if(body&&body.error)msg=body.error; }catch{}
-      toast(msg);
-      return;
-    }
-    if(data.make)document.getElementById('in-make').value=data.make;
-    if(data.model)document.getElementById('in-model').value=data.model;
-    if(data.colour)document.getElementById('in-colour').value=data.colour;
-    if(data.fuelType)document.getElementById('in-fuel').value=data.fuelType;
-    toast('Found vehicle');
-  }catch(e){
-    console.error(e);
-    toast('Lookup failed');
-  }finally{
-    btnLookup.disabled=false;btnLookup.textContent='Look up';
-  }
-};
-
 document.getElementById('dlg-save').onclick=async()=>{
   if(!activeHole)return;
   const pendingDesc=document.getElementById('in-part-desc').value.trim();
@@ -847,17 +872,15 @@ document.getElementById('dlg-save').onclick=async()=>{
   const reg=document.getElementById('in-reg').value.trim().toUpperCase();
   const make=document.getElementById('in-make').value.trim();
   const model=document.getElementById('in-model').value.trim();
-  const colour=document.getElementById('in-colour').value.trim();
-  const fuelType=document.getElementById('in-fuel').value.trim();
   const parts=editParts.slice();
   const id=activeHole;
   const prev=state[id];
   const prevParts=(prev&&Array.isArray(prev.parts))?prev.parts:[];
   const wasEmpty=!(prev&&(prev.reg||prev.make||prev.model||prevParts.length));
   const hasContent = reg||make||model||parts.length;
-  if(hasContent){state[id]={reg,make,model,colour,fuelType,parts};} else {delete state[id];}
+  if(hasContent){state[id]={reg,make,model,parts};} else {delete state[id];}
   render();closeHole();
-  await persist(id, hasContent?{reg,make,model,colour,fuelType,parts}:null);
+  await persist(id, hasContent?{reg,make,model,parts}:null);
   // logging
   const fmtParts=arr=>arr.map(p=>(p.qty||1)+'× '+p.desc).join(', ');
   if(!hasContent){
@@ -931,8 +954,8 @@ async function persist(id, data){
   try{
     // Always upsert (never delete) so realtime fires reliably for every change.
     const row = data
-      ? { hole:id, reg:data.reg, make:data.make, model:data.model, colour:data.colour||'', fuel_type:data.fuelType||'', parts:data.parts||[], updated_at:new Date().toISOString() }
-      : { hole:id, reg:'', make:'', model:'', colour:'', fuel_type:'', parts:[], updated_at:new Date().toISOString() };
+      ? { hole:id, reg:data.reg, make:data.make, model:data.model, parts:data.parts||[], updated_at:new Date().toISOString() }
+      : { hole:id, reg:'', make:'', model:'', parts:[], updated_at:new Date().toISOString() };
     const { error } = await sb.from(TABLE).upsert(row);
     if(error)throw error;
     toast('Saved');
@@ -1394,7 +1417,7 @@ async function loadAll(){
     state={};
     (data||[]).forEach(r=>{
       const parts = Array.isArray(r.parts) ? r.parts : [];
-      if(r.reg||r.make||r.model||parts.length){state[r.hole]={reg:r.reg,make:r.make,model:r.model,colour:r.colour,fuelType:r.fuel_type,parts};}
+      if(r.reg||r.make||r.model||parts.length){state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts};}
     });
     render();
     setStatus('Live','live');
@@ -1425,7 +1448,7 @@ function subscribe(){
       });
       // Treat a blanked row as empty so the cell clears live.
       if(r.reg||r.make||r.model||incoming.length){
-        state[r.hole]={reg:r.reg,make:r.make,model:r.model,colour:r.colour,fuelType:r.fuel_type,parts:incoming};
+        state[r.hole]={reg:r.reg,make:r.make,model:r.model,parts:incoming};
       } else {
         delete state[r.hole];
       }
@@ -1442,6 +1465,165 @@ function subscribe(){
       if(status==='SUBSCRIBED')setStatus('Live','live');
     });
 }
+
+/* ===================== DIARY / BOOKINGS ===================== */
+let bookings=[];
+let calDate=new Date();      // month being viewed
+calDate.setDate(1);
+
+async function loadBookings(){
+  if(!sb)return;
+  try{
+    const { data, error } = await sb.from('bookings').select('*');
+    if(error)throw error;
+    bookings=data||[];
+    renderCalendar();
+  }catch(e){console.error('bookings load',e);}
+}
+function subscribeBookings(){
+  sb.channel('bookings-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'bookings'},payload=>{
+      if(payload.eventType==='INSERT'){bookings.push(payload.new);}
+      else if(payload.eventType==='UPDATE'){
+        const i=bookings.findIndex(b=>b.id===payload.new.id);
+        if(i>=0)bookings[i]=payload.new; else bookings.push(payload.new);
+      } else if(payload.eventType==='DELETE'){
+        const oid=(payload.old||{}).id;
+        if(oid)bookings=bookings.filter(b=>b.id!==oid); else {loadBookings();return;}
+      }
+      renderCalendar();
+    }).subscribe();
+}
+
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+function renderCalendar(){
+  const grid=document.getElementById('cal-grid');
+  const title=document.getElementById('cal-title');
+  if(!grid)return;
+  title.textContent=MONTHS[calDate.getMonth()]+' '+calDate.getFullYear();
+  let html=DOW.map(d=>'<div class="cal-dow">'+d+'</div>').join('');
+  const first=new Date(calDate.getFullYear(),calDate.getMonth(),1);
+  let startDow=(first.getDay()+6)%7;  // make Monday=0
+  const daysInMonth=new Date(calDate.getFullYear(),calDate.getMonth()+1,0).getDate();
+  const prevDays=new Date(calDate.getFullYear(),calDate.getMonth(),0).getDate();
+  const todayStr=ymd(new Date());
+  const cells=[];
+  // leading days from previous month
+  for(let i=startDow-1;i>=0;i--){cells.push({day:prevDays-i,other:true,date:null});}
+  for(let d=1;d<=daysInMonth;d++){
+    const dt=new Date(calDate.getFullYear(),calDate.getMonth(),d);
+    cells.push({day:d,other:false,date:ymd(dt)});
+  }
+  while(cells.length%7!==0){cells.push({day:cells.length,other:true,date:null});}
+  cells.forEach(c=>{
+    if(c.other){html+='<div class="cal-cell other"><span class="cal-num">'+c.day+'</span></div>';return;}
+    const dayBookings=bookings.filter(b=>b.date===c.date)
+      .sort((a,b)=>({'Morning':0,'All day':1,'Afternoon':2}[a.slot]||3)-({'Morning':0,'All day':1,'Afternoon':2}[b.slot]||3));
+    const chips=dayBookings.map(b=>{
+      const cls=b.slot==='Morning'?'am':b.slot==='Afternoon'?'pm':'allday';
+      const tag=b.slot==='Morning'?'AM':b.slot==='Afternoon'?'PM':'ALL';
+      return '<div class="cal-booking '+cls+'" data-id="'+b.id+'">'+tag+' · '+esc(b.tech||'?')+
+        (b.reg?' · '+esc(b.reg):'')+'</div>';
+    }).join('');
+    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+'" data-date="'+c.date+'">'+
+      '<span class="cal-num">'+c.day+'</span>'+chips+'</div>';
+  });
+  grid.innerHTML=html;
+  // wire cells (admin: double-click to add) and chips (admin: click to edit)
+  grid.querySelectorAll('.cal-cell[data-date]').forEach(cell=>{
+    cell.ondblclick=()=>{ if(document.body.classList.contains('admin'))openBooking(cell.dataset.date,null); };
+  });
+  grid.querySelectorAll('.cal-booking').forEach(chip=>{
+    chip.onclick=(e)=>{
+      e.stopPropagation();
+      if(!document.body.classList.contains('admin'))return;
+      const b=bookings.find(x=>x.id===chip.dataset.id);
+      if(b)openBooking(b.date,b);
+    };
+  });
+}
+
+// month nav
+document.getElementById('cal-prev').onclick=()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();};
+document.getElementById('cal-next').onclick=()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();};
+document.getElementById('cal-today').onclick=()=>{calDate=new Date();calDate.setDate(1);renderCalendar();};
+
+/* ---- Booking dialog ---- */
+let editingBooking=null;
+function openBooking(date,existing){
+  editingBooking=existing;
+  document.getElementById('booking-title').textContent=existing?'Edit booking':'New booking';
+  const dt=new Date(date+'T00:00:00');
+  document.getElementById('booking-date-sub').textContent=dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  // populate techs from users list
+  const sel=document.getElementById('bk-tech');
+  sel.innerHTML=users.length?users.map(u=>'<option value="'+esc(u.name)+'">'+esc(u.name)+'</option>').join(''):'<option value="">(no techs added)</option>';
+  const b=existing||{};
+  if(existing)sel.value=existing.tech||'';
+  document.getElementById('bk-slot').value=b.slot||'Morning';
+  document.getElementById('bk-reg').value=b.reg||'';
+  document.getElementById('bk-name').value=b.customer||'';
+  document.getElementById('bk-phone').value=b.phone||'';
+  document.getElementById('bk-job').value=b.job||'';
+  document.getElementById('bk-delete').style.display=existing?'':'none';
+  document.getElementById('booking-overlay').classList.add('show');
+  document.getElementById('booking-overlay').dataset.date=date;
+}
+function closeBooking(){document.getElementById('booking-overlay').classList.remove('show');editingBooking=null;}
+document.getElementById('bk-cancel').onclick=closeBooking;
+document.getElementById('booking-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('booking-overlay'))closeBooking();});
+
+document.getElementById('bk-save').onclick=async()=>{
+  const date=document.getElementById('booking-overlay').dataset.date;
+  const tech=document.getElementById('bk-tech').value;
+  const slot=document.getElementById('bk-slot').value;
+  const reg=document.getElementById('bk-reg').value.trim().toUpperCase();
+  const customer=document.getElementById('bk-name').value.trim();
+  const phone=document.getElementById('bk-phone').value.trim();
+  const job=document.getElementById('bk-job').value.trim();
+  if(!tech){toast('Pick a technician');return;}
+  // double-booking warning
+  if(!editingBooking){
+    const clash=bookings.some(b=>b.date===date && b.tech===tech &&
+      (b.slot===slot || b.slot==='All day' || slot==='All day'));
+    if(clash && !confirm(tech+' already has a booking that overlaps '+slot+' on this day. Book anyway?'))return;
+  }
+  try{
+    if(editingBooking){
+      await sb.from('bookings').update({tech,slot,reg,customer,phone,job}).eq('id',editingBooking.id);
+    } else {
+      await sb.from('bookings').insert({date,slot,tech,reg,customer,phone,job});
+    }
+    closeBooking();
+    toast('Booking saved');
+  }catch(e){console.error(e);toast('Save failed');}
+};
+document.getElementById('bk-delete').onclick=async()=>{
+  if(!editingBooking)return;
+  if(!confirm('Delete this booking?'))return;
+  try{ await sb.from('bookings').delete().eq('id',editingBooking.id); closeBooking(); toast('Booking deleted'); }
+  catch(e){console.error(e);toast('Delete failed');}
+};
+
+/* ---- View switching (Board / Diary) ---- */
+const tabBoard=document.getElementById('tab-board'), tabDiary=document.getElementById('tab-diary');
+function showBoard(){
+  tabBoard.classList.add('active');tabDiary.classList.remove('active');
+  document.getElementById('stage').style.display='';
+  document.getElementById('diary').style.display='none';
+}
+function showDiary(){
+  tabDiary.classList.add('active');tabBoard.classList.remove('active');
+  document.getElementById('stage').style.display='none';
+  document.getElementById('diary').style.display='';
+  renderCalendar();
+}
+tabBoard.onclick=showBoard;
+tabDiary.onclick=showDiary;
 
 function init(){
   render();
@@ -1479,6 +1661,7 @@ function init(){
   loadCatalog();
   loadUsers();
   loadCollections().then(subscribeCollections);
+  loadBookings().then(subscribeBookings);
 }
 init();
 </script>
