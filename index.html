@@ -69,6 +69,10 @@
   .users-add{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   .users-add input{flex:1;min-width:90px;font:inherit;font-size:14px;padding:9px 11px;border-radius:8px;
     background:var(--bg);border:1px solid var(--line-2);color:var(--text)}
+  .users-add input[type=color]{flex:none;width:44px;min-width:44px;padding:2px;cursor:pointer;height:38px}
+  #users-list .uitem .uname{display:flex;align-items:center;gap:8px}
+  #users-list .uitem .uswatch{width:26px;height:26px;padding:0;border:1px solid var(--line-2);
+    border-radius:6px;cursor:pointer;flex:none;background:none}
   .users-add input:focus{outline:none;border-color:var(--accent)}
   .users-add button{flex:none;font:inherit;font-size:14px;padding:9px 16px;border-radius:8px;cursor:pointer;
     border:none;background:var(--accent);color:#fff;font-weight:600}
@@ -291,7 +295,7 @@
     <button id="btn-requests" title="Part requests" style="display:none">📥 <span id="requests-count">0</span></button>
     <button id="btn-log" title="Activity log" style="display:none">📋 Log</button>
     <button id="btn-catalog" title="Manage parts catalogue" style="display:none">🔧 Parts</button>
-    <button id="btn-users" title="Manage users" style="display:none">👤 Users</button>
+    <button id="btn-users" title="Manage users" style="display:none">👤 Techs</button>
     <div class="mode-btns" style="display:flex;gap:8px">
       <button id="btn-admin">Admin</button>
       <button id="btn-tv" class="active">TV display</button>
@@ -302,12 +306,12 @@
 
 <div class="returns-panel" id="users-panel">
   <div class="rp-head">
-    <strong>Users</strong>
+    <strong>Technicians</strong>
     <button id="users-close">✕</button>
   </div>
   <div class="users-add">
     <input id="new-user-name" placeholder="Name" autocomplete="off">
-    <input id="new-user-pin" placeholder="4-digit PIN" inputmode="numeric" maxlength="4" autocomplete="off">
+    <input id="new-user-colour" type="color" value="#1f6fe0" title="Colour">
     <button id="btn-add-user">Add</button>
   </div>
   <div id="users-list"></div>
@@ -1041,36 +1045,40 @@ async function loadUsers(){
     renderUsers();
   }catch(e){console.error('users load',e);}
 }
-async function addUser(name,pin){
+async function addUser(name,colour){
   if(!sb)return;
   try{
-    const { error } = await sb.from('users').insert({name,pin});
+    const { error } = await sb.from('users').insert({name,colour,pin:null});
     if(error)throw error;
     await loadUsers();
-    toast('User added');
-  }catch(e){
-    if((e.message||'').includes('duplicate')||(e.code==='23505'))toast('PIN already in use');
-    else {toast('Could not add user');console.error(e);}
-  }
+    toast('Technician added');
+  }catch(e){toast('Could not add');console.error(e);}
 }
 async function removeUser(id){
   if(!sb)return;
   try{ await sb.from('users').delete().eq('id',id); await loadUsers(); }
   catch(e){console.error(e);}
 }
-function findUserByPin(pin){
-  return users.find(u=>String(u.pin)===String(pin))||null;
+async function updateUserColour(id,colour){
+  if(!sb)return;
+  try{ await sb.from('users').update({colour}).eq('id',id); await loadUsers(); renderCalendar(); }
+  catch(e){console.error(e);}
+}
+function techColour(name){
+  const u=users.find(u=>u.name===name);
+  return (u&&u.colour)||'#1f6fe0';
 }
 
 function renderUsers(){
   const list=document.getElementById('users-list');
   if(!list)return;
-  if(!users.length){list.innerHTML='<div class="empty-note">No users yet.</div>';return;}
+  if(!users.length){list.innerHTML='<div class="empty-note">No technicians yet.</div>';return;}
   list.innerHTML=users.map(u=>
-    '<div class="uitem"><span>'+esc(u.name)+' <span class="upin">PIN '+esc(u.pin)+'</span></span>'+
+    '<div class="uitem"><span class="uname"><input type="color" class="uswatch" data-id="'+u.id+'" value="'+esc(u.colour||'#1f6fe0')+'"> '+esc(u.name)+'</span>'+
     '<button data-id="'+u.id+'">Remove</button></div>'
   ).join('');
   list.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>removeUser(b.dataset.id));
+  list.querySelectorAll('.uswatch').forEach(sw=>sw.onchange=()=>updateUserColour(sw.dataset.id,sw.value));
 }
 
 function renderCollections(){
@@ -1364,12 +1372,11 @@ document.getElementById('btn-users').onclick=()=>{
 document.getElementById('users-close').onclick=()=>document.getElementById('users-panel').classList.remove('show');
 document.getElementById('btn-add-user').onclick=async()=>{
   const name=document.getElementById('new-user-name').value.trim();
-  const pin=document.getElementById('new-user-pin').value.trim();
+  const colour=document.getElementById('new-user-colour').value||'#1f6fe0';
   if(!name){toast('Enter a name');return;}
-  if(!/^\d{4}$/.test(pin)){toast('PIN must be 4 digits');return;}
-  await addUser(name,pin);
+  await addUser(name,colour);
   document.getElementById('new-user-name').value='';
-  document.getElementById('new-user-pin').value='';
+  document.getElementById('new-user-colour').value='#1f6fe0';
 };
 
 async function loadReturns(){
@@ -1523,9 +1530,9 @@ function renderCalendar(){
     const dayBookings=bookings.filter(b=>b.date===c.date)
       .sort((a,b)=>({'Morning':0,'All day':1,'Afternoon':2}[a.slot]||3)-({'Morning':0,'All day':1,'Afternoon':2}[b.slot]||3));
     const chips=dayBookings.map(b=>{
-      const cls=b.slot==='Morning'?'am':b.slot==='Afternoon'?'pm':'allday';
       const tag=b.slot==='Morning'?'AM':b.slot==='Afternoon'?'PM':'ALL';
-      return '<div class="cal-booking '+cls+'" data-id="'+b.id+'">'+tag+' · '+esc(b.tech||'?')+
+      const col=techColour(b.tech);
+      return '<div class="cal-booking" style="background:'+col+'" data-id="'+b.id+'">'+tag+' · '+esc(b.tech||'?')+
         (b.reg?' · '+esc(b.reg):'')+'</div>';
     }).join('');
     html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+'" data-date="'+c.date+'">'+
