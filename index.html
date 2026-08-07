@@ -49,6 +49,8 @@
     padding:6px 7px;display:flex;flex-direction:column;gap:4px;overflow:hidden;cursor:default}
   .cal-cell.other{background:var(--empty);opacity:.5}
   .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px rgba(31,111,224,.3)}
+  .cal-cell.full{border-color:#d33;box-shadow:0 0 0 2px rgba(221,51,51,.35)}
+  .cal-cell.full.today{border-color:#d33;box-shadow:0 0 0 2px rgba(221,51,51,.45)}
   body.admin .cal-cell{cursor:pointer}
   .cal-cell .cal-num{font-size:14px;font-weight:700;color:var(--muted)}
   .cal-cell.today .cal-num{color:var(--accent)}
@@ -59,6 +61,9 @@
   .day-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
   .day-head .day-title{font-size:17px;font-weight:700;flex:1}
   .day-head .day-close{border:none;background:none;cursor:pointer;color:var(--muted);font-size:16px}
+  .day-head .day-add-allday{font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:7px;
+    cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent)}
+  .day-head .day-add-allday:hover{background:var(--accent);color:#fff}
   .day-head .day-close:hover{color:var(--bad)}
   .day-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .day-col{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
@@ -452,12 +457,6 @@
     <div class="dlg-body">
       <div class="field"><label>Technician</label>
         <select id="bk-tech"></select></div>
-      <div class="field"><label>Slot</label>
-        <select id="bk-slot">
-          <option value="Morning">Morning</option>
-          <option value="Afternoon">Afternoon</option>
-          <option value="All day">All day</option>
-        </select></div>
       <div class="field"><label>Registration</label>
         <input id="bk-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
       <div class="field"><label>Customer name</label>
@@ -1528,6 +1527,18 @@ function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
+// A day is "full" when every technician has both AM and PM covered
+// (either separate Morning + Afternoon bookings, or an All day booking).
+function isDayFull(dayBookings){
+  if(!users.length)return false;
+  return users.every(u=>{
+    const mine=dayBookings.filter(b=>b.tech===u.name);
+    const hasAM=mine.some(b=>b.slot==='Morning'||b.slot==='All day');
+    const hasPM=mine.some(b=>b.slot==='Afternoon'||b.slot==='All day');
+    return hasAM&&hasPM;
+  });
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
@@ -1567,6 +1578,7 @@ function renderCalendar(){
       html+='<div class="cal-cell expanded-day today" data-date="'+c.date+'">'+
         '<div class="day-head"><span class="cal-num">'+c.day+'</span>'+
         '<span class="day-title">'+new Date(c.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})+'</span>'+
+        '<button class="day-add-allday" data-date="'+c.date+'">+ All day</button>'+
         '<button class="day-close">✕</button></div>'+
         '<div class="day-cols">'+col('Morning',amJobs,'Morning')+col('Afternoon',pmJobs,'Afternoon')+'</div></div>';
       return;
@@ -1577,7 +1589,8 @@ function renderCalendar(){
       return '<div class="cal-booking" style="background:'+col+'" data-id="'+b.id+'">'+tag+' · '+esc(b.tech||'?')+
         (b.reg?' · '+esc(b.reg):'')+'</div>';
     }).join('');
-    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+'" data-date="'+c.date+'">'+
+    const fullyBooked = isDayFull(dayBookings);
+    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+(fullyBooked?' full':'')+'" data-date="'+c.date+'">'+
       '<span class="cal-num">'+c.day+'</span>'+chips+'</div>';
   });
   grid.innerHTML=html;
@@ -1592,6 +1605,12 @@ function renderCalendar(){
   grid.querySelectorAll('.expanded-day').forEach(cell=>{
     const close=cell.querySelector('.day-close');
     if(close)close.onclick=(e)=>{e.stopPropagation();expandedDay=null;renderCalendar();};
+    const allday=cell.querySelector('.day-add-allday');
+    if(allday)allday.onclick=(e)=>{
+      e.stopPropagation();
+      if(!document.body.classList.contains('admin')){toast('Admin only');return;}
+      openBooking(allday.dataset.date,null,'All day');
+    };
     cell.querySelectorAll('.day-job').forEach(j=>j.onclick=(e)=>{
       e.stopPropagation();
       if(!document.body.classList.contains('admin'))return;
@@ -1601,8 +1620,7 @@ function renderCalendar(){
     cell.querySelectorAll('.day-add').forEach(btn=>btn.onclick=(e)=>{
       e.stopPropagation();
       if(!document.body.classList.contains('admin')){toast('Admin only');return;}
-      openBooking(btn.dataset.date,null);
-      document.getElementById('bk-slot').value=btn.dataset.slot;
+      openBooking(btn.dataset.date,null,btn.dataset.slot);
     });
   });
   // chips still clickable for quick edit
@@ -1623,24 +1641,27 @@ document.getElementById('cal-today').onclick=()=>{calDate=new Date();calDate.set
 
 /* ---- Booking dialog ---- */
 let editingBooking=null;
-function openBooking(date,existing){
+function openBooking(date,existing,slot){
   editingBooking=existing;
   document.getElementById('booking-title').textContent=existing?'Edit booking':'New booking';
+  const bkSlot = existing ? (existing.slot||'Morning') : (slot||'Morning');
   const dt=new Date(date+'T00:00:00');
-  document.getElementById('booking-date-sub').textContent=dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('booking-date-sub').textContent=
+    dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'})+' · '+bkSlot;
   // populate techs from users list
   const sel=document.getElementById('bk-tech');
   sel.innerHTML=users.length?users.map(u=>'<option value="'+esc(u.name)+'">'+esc(u.name)+'</option>').join(''):'<option value="">(no techs added)</option>';
   const b=existing||{};
   if(existing)sel.value=existing.tech||'';
-  document.getElementById('bk-slot').value=b.slot||'Morning';
   document.getElementById('bk-reg').value=b.reg||'';
   document.getElementById('bk-name').value=b.customer||'';
   document.getElementById('bk-phone').value=b.phone||'';
   document.getElementById('bk-job').value=b.job||'';
   document.getElementById('bk-delete').style.display=existing?'':'none';
-  document.getElementById('booking-overlay').classList.add('show');
-  document.getElementById('booking-overlay').dataset.date=date;
+  const ov=document.getElementById('booking-overlay');
+  ov.classList.add('show');
+  ov.dataset.date=date;
+  ov.dataset.slot=bkSlot;
 }
 function closeBooking(){document.getElementById('booking-overlay').classList.remove('show');editingBooking=null;}
 document.getElementById('bk-cancel').onclick=closeBooking;
@@ -1649,8 +1670,8 @@ document.getElementById('booking-overlay').addEventListener('click',e=>{
 
 document.getElementById('bk-save').onclick=async()=>{
   const date=document.getElementById('booking-overlay').dataset.date;
+  const slot=document.getElementById('booking-overlay').dataset.slot||'Morning';
   const tech=document.getElementById('bk-tech').value;
-  const slot=document.getElementById('bk-slot').value;
   const reg=document.getElementById('bk-reg').value.trim().toUpperCase();
   const customer=document.getElementById('bk-name').value.trim();
   const phone=document.getElementById('bk-phone').value.trim();
