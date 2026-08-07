@@ -66,6 +66,12 @@
   .day-head .day-add-allday:hover{background:var(--accent);color:#fff}
   .day-head .day-close:hover{color:var(--bad)}
   .day-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .day-allday-row{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .day-allday-row .allday-job{background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--accent);
+    display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;gap:4px 14px}
+  .day-allday-row .allday-job .dj-all-label{font-size:11px;font-weight:800;letter-spacing:1px;
+    background:var(--accent);color:#fff;padding:2px 8px;border-radius:12px}
+  .day-allday-row .allday-job .dj-reg,.day-allday-row .allday-job .dj-cust,.day-allday-row .allday-job .dj-desc{margin:0}
   .day-col{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
   .day-col-h{font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
   .day-job{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
@@ -1563,23 +1569,33 @@ function renderCalendar(){
     const dayBookings=bookings.filter(b=>b.date===c.date)
       .sort((a,b)=>({'Morning':0,'All day':1,'Afternoon':2}[a.slot]||3)-({'Morning':0,'All day':1,'Afternoon':2}[b.slot]||3));
     if(expandedDay===c.date){
-      // Expanded detail: AM | PM columns
-      const amJobs=dayBookings.filter(b=>b.slot==='Morning'||b.slot==='All day');
-      const pmJobs=dayBookings.filter(b=>b.slot==='Afternoon'||b.slot==='All day');
+      // Expanded detail: all-day jobs span full width, then AM | PM columns
+      const allDayJobs=dayBookings.filter(b=>b.slot==='All day');
+      const amJobs=dayBookings.filter(b=>b.slot==='Morning');
+      const pmJobs=dayBookings.filter(b=>b.slot==='Afternoon');
       const jobRow=b=>'<div class="day-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
         '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
-        (b.slot==='All day'?' <span class="dj-all">(all day)</span>':'')+
         (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
         (b.customer?'<span class="dj-cust">'+esc(b.customer)+'</span>':'')+
         (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>';
       const col=(label,jobs,slot)=>'<div class="day-col"><div class="day-col-h">'+label+'</div>'+
         (jobs.length?jobs.map(jobRow).join(''):'<div class="day-empty">—</div>')+
         '<button class="day-add" data-date="'+c.date+'" data-slot="'+slot+'">+ Add</button></div>';
+      const allDayBar = allDayJobs.length ?
+        '<div class="day-allday-row">'+allDayJobs.map(b=>
+          '<div class="day-job allday-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
+          '<span class="dj-all-label">ALL DAY</span>'+
+          '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
+          (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
+          (b.customer?'<span class="dj-cust">'+esc(b.customer)+'</span>':'')+
+          (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>'
+        ).join('')+'</div>' : '';
       html+='<div class="cal-cell expanded-day today" data-date="'+c.date+'">'+
         '<div class="day-head"><span class="cal-num">'+c.day+'</span>'+
         '<span class="day-title">'+new Date(c.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})+'</span>'+
         '<button class="day-add-allday" data-date="'+c.date+'">+ All day</button>'+
         '<button class="day-close">✕</button></div>'+
+        allDayBar+
         '<div class="day-cols">'+col('Morning',amJobs,'Morning')+col('Afternoon',pmJobs,'Afternoon')+'</div></div>';
       return;
     }
