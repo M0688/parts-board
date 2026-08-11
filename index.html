@@ -51,6 +51,11 @@
   .cal-cell.past{background:var(--empty);opacity:.55}
   .cal-cell.past.today{opacity:1}
   .cal-cell.past .cal-booking{filter:grayscale(.6)}
+  .cal-cell.weekend{background:#fbf4ec}
+  .cal-cell.weekend .cal-num{color:#c07a2b}
+  .cal-cell.weekend.today{background:#fbf4ec}
+  .cal-cell.weekend.past{background:var(--empty)}
+  .cal-dow.we{color:#c07a2b}
   .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px rgba(31,111,224,.3)}
   .cal-cell.full{border-color:#d33;box-shadow:0 0 0 2px rgba(221,51,51,.35)}
   .cal-cell.full.today{border-color:#d33;box-shadow:0 0 0 2px rgba(221,51,51,.45)}
@@ -1619,7 +1624,7 @@ function renderCalendar(){
   const title=document.getElementById('cal-title');
   if(!grid)return;
   title.textContent=MONTHS[calDate.getMonth()]+' '+calDate.getFullYear();
-  let html=DOW.map(d=>'<div class="cal-dow">'+d+'</div>').join('');
+  let html=DOW.map((d,i)=>'<div class="cal-dow'+(i>=5?' we':'')+'">'+d+'</div>').join('');
   const first=new Date(calDate.getFullYear(),calDate.getMonth(),1);
   let startDow=(first.getDay()+6)%7;  // make Monday=0
   const daysInMonth=new Date(calDate.getFullYear(),calDate.getMonth()+1,0).getDate();
@@ -1685,7 +1690,9 @@ function renderCalendar(){
     }).join('');
     const fullyBooked = isDayFull(dayBookings);
     const isPast = c.date < todayStr;
-    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+(fullyBooked?' full':'')+(isPast?' past':'')+'" data-date="'+c.date+'">'+
+    const dow=new Date(c.date+'T00:00:00').getDay();  // 0=Sun, 6=Sat
+    const isWeekend=(dow===0||dow===6);
+    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+(fullyBooked?' full':'')+(isPast?' past':'')+(isWeekend?' weekend':'')+'" data-date="'+c.date+'">'+
       '<span class="cal-num">'+c.day+'</span>'+chips+'</div>';
   });
   grid.innerHTML=html;
