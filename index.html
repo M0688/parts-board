@@ -1612,8 +1612,7 @@ function renderCalendar(){
       const jobRow=b=>'<div class="day-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
         '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
         (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
-        (b.customer?'<span class="dj-cust">'+esc(b.customer)+'</span>':'')+
-        (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>';
+                (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>';
       const col=(label,jobs,slot)=>'<div class="day-col"><div class="day-col-h">'+label+'</div>'+
         (jobs.length?jobs.map(jobRow).join(''):'<div class="day-empty">—</div>')+
         '<button class="day-add" data-date="'+c.date+'" data-slot="'+slot+'">+ Add</button></div>';
@@ -1623,8 +1622,7 @@ function renderCalendar(){
           '<span class="dj-all-label">ALL DAY</span>'+
           '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
           (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
-          (b.customer?'<span class="dj-cust">'+esc(b.customer)+'</span>':'')+
-          (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>'
+                    (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>'
         ).join('')+'</div>' : '';
       html+='<div class="cal-cell expanded-day today" data-date="'+c.date+'">'+
         '<div class="day-head"><span class="cal-num">'+c.day+'</span>'+
