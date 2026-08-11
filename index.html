@@ -64,6 +64,21 @@
   .day-head .day-add-allday{font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:7px;
     cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent)}
   .day-head .day-add-allday:hover{background:var(--accent);color:#fff}
+  .day-head .day-absent-allday{font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:7px;
+    cursor:pointer;border:1px solid var(--line-2);background:transparent;color:var(--muted)}
+  .day-head .day-absent-allday:hover{border-color:#888;color:var(--text)}
+  .day-col-btns{display:flex;gap:6px;margin-top:4px}
+  .day-col-btns .day-add{flex:1;margin-top:0}
+  .day-col-btns .day-absent{font:inherit;font-size:13px;font-weight:600;padding:7px 12px;border-radius:7px;cursor:pointer;
+    border:1px dashed var(--line-2);background:transparent;color:var(--muted)}
+  .day-col-btns .day-absent:hover{border-color:#888;border-style:solid;color:var(--text)}
+  .day-job.absent-job{border-left-color:#9aa3b2 !important;background:#eef1f6;
+    flex-direction:row;align-items:center;gap:10px}
+  .day-job.absent-job .dj-tech{color:#5e6877 !important;font-weight:700}
+  .day-job.absent-job .dj-off{font-size:11px;font-weight:800;letter-spacing:1px;background:#9aa3b2;color:#fff;
+    padding:2px 8px;border-radius:10px}
+  .day-job.absent-job .dj-all-label.off{background:#9aa3b2}
+  .cal-booking.off{background:#9aa3b2 !important;color:#fff}
   .day-head .day-close:hover{color:var(--bad)}
   .day-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .day-allday-row{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
@@ -475,10 +490,6 @@
         <select id="bk-tech"></select></div>
       <div class="field"><label>Registration</label>
         <input id="bk-reg" class="reg-input" placeholder="AB12 CDE" autocomplete="off"></div>
-      <div class="field"><label>Customer name</label>
-        <input id="bk-name" placeholder="Name" autocomplete="off"></div>
-      <div class="field"><label>Phone</label>
-        <input id="bk-phone" placeholder="Phone" autocomplete="off"></div>
       <div class="field"><label>Job details</label>
         <input id="bk-job" placeholder="e.g. Full service" autocomplete="off"></div>
     </div>
@@ -1609,25 +1620,33 @@ function renderCalendar(){
       const allDayJobs=dayBookings.filter(b=>b.slot==='All day');
       const amJobs=dayBookings.filter(b=>b.slot==='Morning');
       const pmJobs=dayBookings.filter(b=>b.slot==='Afternoon');
-      const jobRow=b=>'<div class="day-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
-        '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
-        (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
-                (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>';
-      const col=(label,jobs,slot)=>'<div class="day-col"><div class="day-col-h">'+label+'</div>'+
-        (jobs.length?jobs.map(jobRow).join(''):'<div class="day-empty">—</div>')+
-        '<button class="day-add" data-date="'+c.date+'" data-slot="'+slot+'">+ Add</button></div>';
-      const allDayBar = allDayJobs.length ?
-        '<div class="day-allday-row">'+allDayJobs.map(b=>
-          '<div class="day-job allday-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
-          '<span class="dj-all-label">ALL DAY</span>'+
+      const jobRow=b=> b.absent
+        ? '<div class="day-job absent-job" data-id="'+b.id+'">'+
+          '<span class="dj-tech">'+esc(b.tech||'?')+'</span><span class="dj-off">OFF</span></div>'
+        : '<div class="day-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
           '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
           (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
-                    (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>'
+          (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>';
+      const col=(label,jobs,slot)=>'<div class="day-col"><div class="day-col-h">'+label+'</div>'+
+        (jobs.length?jobs.map(jobRow).join(''):'<div class="day-empty">—</div>')+
+        '<div class="day-col-btns"><button class="day-add" data-date="'+c.date+'" data-slot="'+slot+'">+ Add</button>'+
+        '<button class="day-absent" data-date="'+c.date+'" data-slot="'+slot+'">Mark off</button></div></div>';
+      const allDayBar = allDayJobs.length ?
+        '<div class="day-allday-row">'+allDayJobs.map(b=> b.absent
+          ? '<div class="day-job allday-job absent-job" data-id="'+b.id+'">'+
+            '<span class="dj-all-label off">OFF ALL DAY</span>'+
+            '<span class="dj-tech">'+esc(b.tech||'?')+'</span></div>'
+          : '<div class="day-job allday-job" style="border-left-color:'+techColour(b.tech)+'" data-id="'+b.id+'">'+
+            '<span class="dj-all-label">ALL DAY</span>'+
+            '<span class="dj-tech" style="color:'+techColour(b.tech)+'">'+esc(b.tech||'?')+'</span>'+
+            (b.reg?'<span class="dj-reg">'+esc(b.reg)+'</span>':'')+
+            (b.job?'<span class="dj-desc">'+esc(b.job)+'</span>':'')+'</div>'
         ).join('')+'</div>' : '';
       html+='<div class="cal-cell expanded-day today" data-date="'+c.date+'">'+
         '<div class="day-head"><span class="cal-num">'+c.day+'</span>'+
         '<span class="day-title">'+new Date(c.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})+'</span>'+
         '<button class="day-add-allday" data-date="'+c.date+'">+ All day</button>'+
+        '<button class="day-absent-allday" data-date="'+c.date+'">Off all day</button>'+
         '<button class="day-close">✕</button></div>'+
         allDayBar+
         '<div class="day-cols">'+col('Morning',amJobs,'Morning')+col('Afternoon',pmJobs,'Afternoon')+'</div></div>';
@@ -1635,6 +1654,9 @@ function renderCalendar(){
     }
     const chips=dayBookings.map(b=>{
       const tag=b.slot==='Morning'?'AM':b.slot==='Afternoon'?'PM':'ALL';
+      if(b.absent){
+        return '<div class="cal-booking off" data-id="'+b.id+'">'+tag+' · '+esc(b.tech||'?')+' · OFF</div>';
+      }
       const col=techColour(b.tech);
       return '<div class="cal-booking" style="background:'+col+'" data-id="'+b.id+'">'+tag+' · '+esc(b.tech||'?')+
         (b.reg?' · '+esc(b.reg):'')+'</div>';
@@ -1672,6 +1694,17 @@ function renderCalendar(){
       if(!document.body.classList.contains('admin')){toast('Admin only');return;}
       openBooking(btn.dataset.date,null,btn.dataset.slot);
     });
+    cell.querySelectorAll('.day-absent').forEach(btn=>btn.onclick=(e)=>{
+      e.stopPropagation();
+      if(!document.body.classList.contains('admin')){toast('Admin only');return;}
+      openBooking(btn.dataset.date,null,btn.dataset.slot,true);
+    });
+    const absentAll=cell.querySelector('.day-absent-allday');
+    if(absentAll)absentAll.onclick=(e)=>{
+      e.stopPropagation();
+      if(!document.body.classList.contains('admin')){toast('Admin only');return;}
+      openBooking(absentAll.dataset.date,null,'All day',true);
+    };
   });
   // chips still clickable for quick edit
   grid.querySelectorAll('.cal-booking').forEach(chip=>{
@@ -1691,9 +1724,11 @@ document.getElementById('cal-today').onclick=()=>{calDate=new Date();calDate.set
 
 /* ---- Booking dialog ---- */
 let editingBooking=null;
-function openBooking(date,existing,slot){
+function openBooking(date,existing,slot,absentMode){
   editingBooking=existing;
-  document.getElementById('booking-title').textContent=existing?'Edit booking':'New booking';
+  const isAbsent = existing ? !!existing.absent : !!absentMode;
+  document.getElementById('booking-title').textContent=
+    isAbsent ? (existing?'Edit absence':'Mark absent') : (existing?'Edit booking':'New booking');
   const bkSlot = existing ? (existing.slot||'Morning') : (slot||'Morning');
   const dt=new Date(date+'T00:00:00');
   document.getElementById('booking-date-sub').textContent=
@@ -1704,14 +1739,18 @@ function openBooking(date,existing,slot){
   const b=existing||{};
   if(existing)sel.value=existing.tech||'';
   document.getElementById('bk-reg').value=b.reg||'';
-  document.getElementById('bk-name').value=b.customer||'';
-  document.getElementById('bk-phone').value=b.phone||'';
   document.getElementById('bk-job').value=b.job||'';
+  // hide reg + job when marking absent (not needed)
+  const regField=document.getElementById('bk-reg').closest('.field');
+  const jobField=document.getElementById('bk-job').closest('.field');
+  regField.style.display=isAbsent?'none':'';
+  jobField.style.display=isAbsent?'none':'';
   document.getElementById('bk-delete').style.display=existing?'':'none';
   const ov=document.getElementById('booking-overlay');
   ov.classList.add('show');
   ov.dataset.date=date;
   ov.dataset.slot=bkSlot;
+  ov.dataset.absent=isAbsent?'1':'0';
 }
 function closeBooking(){document.getElementById('booking-overlay').classList.remove('show');editingBooking=null;}
 document.getElementById('bk-cancel').onclick=closeBooking;
@@ -1723,9 +1762,8 @@ document.getElementById('bk-save').onclick=async()=>{
   const slot=document.getElementById('booking-overlay').dataset.slot||'Morning';
   const tech=document.getElementById('bk-tech').value;
   const reg=document.getElementById('bk-reg').value.trim().toUpperCase();
-  const customer=document.getElementById('bk-name').value.trim();
-  const phone=document.getElementById('bk-phone').value.trim();
   const job=document.getElementById('bk-job').value.trim();
+  const absent=document.getElementById('booking-overlay').dataset.absent==='1';
   if(!tech){toast('Pick a technician');return;}
   // double-booking warning
   if(!editingBooking){
@@ -1735,12 +1773,12 @@ document.getElementById('bk-save').onclick=async()=>{
   }
   try{
     if(editingBooking){
-      await sb.from('bookings').update({tech,slot,reg,customer,phone,job}).eq('id',editingBooking.id);
+      await sb.from('bookings').update({tech,slot,reg,job,absent}).eq('id',editingBooking.id);
     } else {
-      await sb.from('bookings').insert({date,slot,tech,reg,customer,phone,job});
+      await sb.from('bookings').insert({date,slot,tech,reg,job,absent});
     }
     closeBooking();
-    toast('Booking saved');
+    toast(absent?'Absence saved':'Booking saved');
   }catch(e){console.error(e);toast('Save failed');}
 };
 document.getElementById('bk-delete').onclick=async()=>{
