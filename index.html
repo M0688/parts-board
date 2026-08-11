@@ -1582,6 +1582,16 @@ const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
 // A day is "full" when every technician has both AM and PM covered
 // (either separate Morning + Afternoon bookings, or an All day booking).
+// Is this tech marked OFF for a slot that overlaps the given slot on that date?
+function techOffForSlot(tech, date, slot){
+  return bookings.some(b=>{
+    if(!b.absent || b.tech!==tech || b.date!==date) return false;
+    // any all-day absence blocks everything; otherwise slots must overlap
+    if(b.slot==='All day' || slot==='All day') return true;
+    return b.slot===slot;
+  });
+}
+
 function isDayFull(dayBookings){
   if(!users.length)return false;
   return users.every(u=>{
@@ -1733,9 +1743,17 @@ function openBooking(date,existing,slot,absentMode){
   const dt=new Date(date+'T00:00:00');
   document.getElementById('booking-date-sub').textContent=
     dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'})+' · '+bkSlot;
-  // populate techs from users list
+  // populate techs from users list — exclude any who are marked OFF for this slot
+  // (unless we're marking absence, or editing an existing booking's own tech)
   const sel=document.getElementById('bk-tech');
-  sel.innerHTML=users.length?users.map(u=>'<option value="'+esc(u.name)+'">'+esc(u.name)+'</option>').join(''):'<option value="">(no techs added)</option>';
+  const availableTechs = users.filter(u=>{
+    if(isAbsent) return true;                              // marking off: allow all
+    if(existing && existing.tech===u.name) return true;    // keep current tech when editing
+    return !techOffForSlot(u.name, date, bkSlot);
+  });
+  sel.innerHTML=availableTechs.length
+    ? availableTechs.map(u=>'<option value="'+esc(u.name)+'">'+esc(u.name)+'</option>').join('')
+    : '<option value="">(no techs available)</option>';
   const b=existing||{};
   if(existing)sel.value=existing.tech||'';
   document.getElementById('bk-reg').value=b.reg||'';
@@ -1765,9 +1783,13 @@ document.getElementById('bk-save').onclick=async()=>{
   const job=document.getElementById('bk-job').value.trim();
   const absent=document.getElementById('booking-overlay').dataset.absent==='1';
   if(!tech){toast('Pick a technician');return;}
+  // block booking a JOB for a tech who is off that slot
+  if(!absent && techOffForSlot(tech,date,slot)){
+    toast(tech+' is marked off for '+slot);return;
+  }
   // double-booking warning
   if(!editingBooking){
-    const clash=bookings.some(b=>b.date===date && b.tech===tech &&
+    const clash=bookings.some(b=>b.date===date && b.tech===tech && !b.absent &&
       (b.slot===slot || b.slot==='All day' || slot==='All day'));
     if(clash && !confirm(tech+' already has a booking that overlaps '+slot+' on this day. Book anyway?'))return;
   }
