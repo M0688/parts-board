@@ -430,8 +430,8 @@
 
 <div class="overlay" id="overlay">
   <div class="dialog">
-    <h3 id="dlg-title">Hole</h3>
-    <p class="sub">Set the vehicle stored in this hole.</p>
+    <h3 id="dlg-title">Bin</h3>
+    <p class="sub">Set the vehicle stored in this bin.</p>
     <div class="dlg-body">
     <div class="field"><label>Registration</label>
       <div class="reg-row">
@@ -444,7 +444,7 @@
     <div class="field"><label>Model</label>
       <input id="in-model" placeholder="C3" autocomplete="off"></div>
     <div class="field">
-      <label>Parts in this hole</label>
+      <label>Parts in this bin</label>
       <div id="parts-list" class="parts-edit"></div>
       <div class="parts-add">
         <input id="in-part-desc" list="parts-datalist" placeholder="Search or type a part…" autocomplete="off">
@@ -455,7 +455,7 @@
     </div>
     </div>
     <div class="actions">
-      <button class="clear" id="dlg-clear">Empty hole</button>
+      <button class="clear" id="dlg-clear">Empty bin</button>
       <button class="cancel" id="dlg-cancel">Cancel</button>
       <button class="save" id="dlg-save">Save</button>
     </div>
@@ -950,7 +950,7 @@ document.getElementById('dlg-save').onclick=async()=>{
   // logging
   const fmtParts=arr=>arr.map(p=>(p.qty||1)+'× '+p.desc).join(', ');
   if(!hasContent){
-    await logActivity(id, prev&&prev.reg, 'Emptied hole', null);
+    await logActivity(id, prev&&prev.reg, 'Emptied bin', null);
   } else if(wasEmpty){
     const vehicle=[make,model].filter(Boolean).join(' ');
     const pd = parts.length ? (vehicle?' · ':'')+'Parts: '+fmtParts(parts) : '';
@@ -965,13 +965,13 @@ document.getElementById('dlg-save').onclick=async()=>{
     if(added.length&&removed.length)detail='Added: '+added.join(', ')+' · Removed: '+removed.join(', ');
     else if(added.length)detail='Added: '+added.join(', ');
     else if(removed.length)detail='Removed: '+removed.join(', ');
-    await logActivity(id, reg, 'Edited hole', detail);
+    await logActivity(id, reg, 'Edited bin', detail);
   }
 };
 document.getElementById('dlg-clear').onclick=async()=>{
   if(!activeHole)return;const id=activeHole;const prev=state[id];delete state[id];render();closeHole();
   await persist(id,null);
-  await logActivity(id, prev&&prev.reg, 'Emptied hole', null);
+  await logActivity(id, prev&&prev.reg, 'Emptied bin', null);
 };
 document.getElementById('in-reg').addEventListener('keydown',e=>{
   if(e.key==='Enter')document.getElementById('dlg-save').click();});
