@@ -48,6 +48,9 @@
   .cal-cell{min-height:120px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
     padding:6px 7px;display:flex;flex-direction:column;gap:4px;overflow:hidden;cursor:default}
   .cal-cell.other{background:var(--empty);opacity:.5}
+  .cal-cell.past{background:var(--empty);opacity:.55}
+  .cal-cell.past.today{opacity:1}
+  .cal-cell.past .cal-booking{filter:grayscale(.6)}
   .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px rgba(31,111,224,.3)}
   .cal-cell.full{border-color:#d33;box-shadow:0 0 0 2px rgba(221,51,51,.35)}
   .cal-cell.full.today{border-color:#d33;box-shadow:0 0 0 2px rgba(221,51,51,.45)}
@@ -1591,6 +1594,15 @@ function techOffForSlot(tech, date, slot){
     return b.slot===slot;
   });
 }
+// Is this tech already committed (job OR off) for a slot overlapping the given slot?
+function techBusyForSlot(tech, date, slot, ignoreId){
+  return bookings.some(b=>{
+    if(b.tech!==tech || b.date!==date) return false;
+    if(ignoreId && b.id===ignoreId) return false;   // don't count the booking being edited
+    if(b.slot==='All day' || slot==='All day') return true;
+    return b.slot===slot;
+  });
+}
 
 function isDayFull(dayBookings){
   if(!users.length)return false;
@@ -1672,7 +1684,8 @@ function renderCalendar(){
         (b.reg?' · '+esc(b.reg):'')+'</div>';
     }).join('');
     const fullyBooked = isDayFull(dayBookings);
-    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+(fullyBooked?' full':'')+'" data-date="'+c.date+'">'+
+    const isPast = c.date < todayStr;
+    html+='<div class="cal-cell'+(c.date===todayStr?' today':'')+(fullyBooked?' full':'')+(isPast?' past':'')+'" data-date="'+c.date+'">'+
       '<span class="cal-num">'+c.day+'</span>'+chips+'</div>';
   });
   grid.innerHTML=html;
@@ -1747,9 +1760,13 @@ function openBooking(date,existing,slot,absentMode){
   // (unless we're marking absence, or editing an existing booking's own tech)
   const sel=document.getElementById('bk-tech');
   const availableTechs = users.filter(u=>{
-    if(isAbsent) return true;                              // marking off: allow all
     if(existing && existing.tech===u.name) return true;    // keep current tech when editing
-    return !techOffForSlot(u.name, date, bkSlot);
+    if(isAbsent){
+      // marking off: exclude only those already off (can't double-off), jobs are fine
+      return !techOffForSlot(u.name, date, bkSlot);
+    }
+    // booking a job: exclude anyone already busy (job or off) that slot
+    return !techBusyForSlot(u.name, date, bkSlot);
   });
   sel.innerHTML=availableTechs.length
     ? availableTechs.map(u=>'<option value="'+esc(u.name)+'">'+esc(u.name)+'</option>').join('')
@@ -1783,15 +1800,14 @@ document.getElementById('bk-save').onclick=async()=>{
   const job=document.getElementById('bk-job').value.trim();
   const absent=document.getElementById('booking-overlay').dataset.absent==='1';
   if(!tech){toast('Pick a technician');return;}
+  const ignoreId = editingBooking ? editingBooking.id : null;
   // block booking a JOB for a tech who is off that slot
   if(!absent && techOffForSlot(tech,date,slot)){
     toast(tech+' is marked off for '+slot);return;
   }
-  // double-booking warning
-  if(!editingBooking){
-    const clash=bookings.some(b=>b.date===date && b.tech===tech && !b.absent &&
-      (b.slot===slot || b.slot==='All day' || slot==='All day'));
-    if(clash && !confirm(tech+' already has a booking that overlaps '+slot+' on this day. Book anyway?'))return;
+  // block if the tech is already committed for an overlapping slot
+  if(techBusyForSlot(tech,date,slot,ignoreId)){
+    toast(tech+' is already booked for '+slot);return;
   }
   try{
     if(editingBooking){
