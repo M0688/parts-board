@@ -219,6 +219,9 @@
   .hole .part .ptext{flex:1}
   .hole .part .q{color:var(--accent);font-weight:700}
   .hole .part.done .ptext{text-decoration:line-through;color:var(--muted)}
+  .hole .part.returning .ptext{color:#c07a2b}
+  .hole .part .ret-pending{font-size:11px;font-weight:700;letter-spacing:.5px;background:#f4e6d2;color:#c07a2b;
+    padding:2px 8px;border-radius:10px;white-space:nowrap}
   .hole .part .pcheck{width:20px;height:20px;flex:none;cursor:pointer;accent-color:var(--accent)}
   .hole .part .pbtn{flex:none;font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;
     cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent);font-weight:600}
@@ -612,16 +615,18 @@ function render(){
       if(parts.length && isExpanded){
         const rows = parts.map((p,i)=>{
           const collected = p.status==='collected';
-          const check = collected ? '' :
+          const returning = p.status==='returning';
+          const check = (collected||returning) ? '' :
             '<input type="checkbox" class="pcheck" data-hole="'+id+'" data-i="'+i+'"'+(p.checked?' checked':'')+'>';
-          const ret = collected ?
+          const ret = (collected && !returning) ?
             '<button class="pbtn ret" data-hole="'+id+'" data-i="'+i+'">Return</button>' : '';
-          return '<div class="part'+(collected?' done':'')+'">'+check+
+          const pendLabel = returning ? '<span class="ret-pending">Return pending</span>' : '';
+          return '<div class="part'+(collected||returning?' done':'')+(returning?' returning':'')+'">'+check+
             '<span class="ptext"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</span>'+
-            ret+'</div>';
+            pendLabel+ret+'</div>';
         }).join('');
-        const anyUncollected = parts.some(p=>p.status!=='collected');
-        const uncollected = parts.filter(p=>p.status!=='collected');
+        const anyUncollected = parts.some(p=>p.status!=='collected'&&p.status!=='returning');
+        const uncollected = parts.filter(p=>p.status!=='collected'&&p.status!=='returning');
         const allTicked = uncollected.length>0 && uncollected.every(p=>p.checked);
         const selectAll = uncollected.length>1 ?
           '<label class="select-all"><input type="checkbox" class="pcheckall" data-hole="'+id+'"'+(allTicked?' checked':'')+'> Select all</label>' : '';
@@ -633,8 +638,17 @@ function render(){
         const sumQty=arr=>arr.reduce((t,p)=>t+(parseInt(p.qty)||1),0);
         const total=sumQty(parts);
         const coll=sumQty(parts.filter(p=>p.status==='collected'));
-        const onShelf=total-coll;
-        const label= coll? onShelf+' on shelf · '+coll+' collected' : total+(total===1?' item':' items');
+        const returning=sumQty(parts.filter(p=>p.status==='returning'));
+        const onShelf=total-coll-returning;
+        let label;
+        if(coll||returning){
+          const bits=[onShelf+' on shelf'];
+          if(coll)bits.push(coll+' collected');
+          if(returning)bits.push(returning+' returning');
+          label=bits.join(' · ');
+        } else {
+          label=total+(total===1?' item':' items');
+        }
         body='<div class="parts-count">'+label+' ›</div>';
       }
       const reqBtn = isExpanded ? '<button class="request-btn" data-hole="'+id+'">Request a part</button>' : '';
@@ -762,7 +776,7 @@ function wireCellControls(){
     const d=state[hole]; if(!d||!d.parts[i])return;
     const part=d.parts[i];
     await requestReturn(hole, d.reg, part);
-    part.status='onshelf'; part.checked=false;
+    part.status='returning'; part.checked=false;   // awaiting admin processing
     render();
     await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
     const nm=(part.qty||1)+'× '+part.desc;
@@ -1470,6 +1484,20 @@ async function clearReturn(rid){
     returns=returns.filter(r=>r.id!==rid);
     renderReturns();
     refreshAttention();
+    // Remove the returned part from its bin (match the specific returning part).
+    if(r && r.hole && state[r.hole]){
+      const d=state[r.hole];
+      const parts=Array.isArray(d.parts)?d.parts:[];
+      // prefer a part marked 'returning' that matches desc + qty; fall back to desc
+      let idx=parts.findIndex(p=>p.status==='returning' && p.desc===r.part_desc && (p.qty||1)===(r.qty||1));
+      if(idx<0)idx=parts.findIndex(p=>p.status==='returning' && p.desc===r.part_desc);
+      if(idx>=0){
+        parts.splice(idx,1);
+        d.parts=parts;
+        render();
+        await persist(r.hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+      }
+    }
     if(r)await logActivity(r.hole, r.reg, 'Return processed', (r.qty||1)+'× '+r.part_desc);
   }catch(e){console.error(e);toast('Could not clear');}
 }
