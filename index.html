@@ -289,6 +289,10 @@
     border:1px solid var(--line-2);color:var(--muted);padding:8px 16px;border-radius:20px;
     font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
+  #attention-border{position:fixed;inset:0;z-index:200;pointer-events:none;display:none;
+    border:8px solid #e02424;border-radius:6px;box-shadow:inset 0 0 30px rgba(224,36,36,.55)}
+  #attention-border.show{display:block;animation:attnFlash 1s infinite}
+  @keyframes attnFlash{0%,100%{opacity:1}50%{opacity:0}}
   #notif-stack{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:80;
     display:flex;flex-direction:column;gap:10px;width:calc(100% - 32px);max-width:560px}
   .notif{background:var(--accent);color:#fff;border-radius:12px;padding:14px 16px;
@@ -488,6 +492,8 @@
 <div class="toast" id="toast"></div>
 
 <div id="notif-stack"></div>
+
+<div id="attention-border" aria-hidden="true"></div>
 
 <div class="overlay" id="booking-overlay">
   <div class="dialog">
@@ -885,6 +891,21 @@ function playChime(){
   }catch(e){}
 }
 
+/* ---- Attention border (admin alert for new returns / requests) ---- */
+function showAttention(){
+  if(!document.body.classList.contains('admin'))return;   // admin screens only
+  document.getElementById('attention-border').classList.add('show');
+  playChime();
+}
+function clearAttention(){
+  document.getElementById('attention-border').classList.remove('show');
+}
+// The border clears only when there's nothing left to action.
+function refreshAttention(){
+  const pending = (returns&&returns.length) || (requests&&requests.length);
+  if(!pending) clearAttention();
+}
+
 function notifyNewParts(hole, reg, parts){
   const stack=document.getElementById('notif-stack');
   const names=parts.map(p=>(p.qty||1)+'× '+p.desc).join(', ');
@@ -1080,6 +1101,7 @@ async function clearRequest(rid){
     await sb.from('requests').delete().eq('id',rid);
     requests=requests.filter(r=>r.id!==rid);
     renderRequests();
+    refreshAttention();
   }catch(e){console.error(e);}
 }
 function renderRequests(){
@@ -1107,10 +1129,11 @@ function subscribeRequests(){
     .on('postgres_changes',{event:'*',schema:'public',table:'requests'},payload=>{
       if(payload.eventType==='INSERT'){
         requests.unshift(payload.new);
-        if(document.body.classList.contains('admin'))toast('New part request');
+        if(document.body.classList.contains('admin')){toast('New part request');showAttention();}
       } else if(payload.eventType==='DELETE'){
         const oid=(payload.old||{}).id;
         if(oid)requests=requests.filter(r=>r.id!==oid); else {loadRequests();return;}
+        refreshAttention();
       }
       renderRequests();
     }).subscribe();
@@ -1391,6 +1414,7 @@ async function clearReturn(rid){
     if(error)throw error;
     returns=returns.filter(r=>r.id!==rid);
     renderReturns();
+    refreshAttention();
     if(r)await logActivity(r.hole, r.reg, 'Return processed', (r.qty||1)+'× '+r.part_desc);
   }catch(e){console.error(e);toast('Could not clear');}
 }
@@ -1475,11 +1499,12 @@ function subscribeReturns(){
     .on('postgres_changes',{event:'*',schema:'public',table:'returns'},payload=>{
       if(payload.eventType==='INSERT'){
         returns.unshift(payload.new);
-        if(document.body.classList.contains('admin'))toast('New return request');
+        if(document.body.classList.contains('admin')){toast('New return request');showAttention();}
       } else if(payload.eventType==='DELETE'){
         const oid=(payload.old||{}).id;
         if(oid)returns=returns.filter(r=>r.id!==oid);
         else {loadReturns();return;}
+        refreshAttention();
       }
       renderReturns();
     })
