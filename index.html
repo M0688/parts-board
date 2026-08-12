@@ -36,6 +36,10 @@
   .view-tabs button{font:inherit;font-size:14px;font-weight:600;color:var(--muted);background:transparent;
     border:1px solid var(--line-2);padding:7px 16px;border-radius:8px;cursor:pointer}
   .view-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  #alert-banner{display:none;margin-left:16px;font-size:22px;font-weight:900;letter-spacing:1px;
+    color:#e02424;animation:alertBlink 1s infinite}
+  #alert-banner.show{display:inline-flex;align-items:center}
+  @keyframes alertBlink{0%,100%{opacity:1}50%{opacity:.25}}
   .diary{padding:22px;max-width:1400px;margin:0 auto}
   .diary-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
   .diary-head h2{font-size:22px;flex:1;text-align:center}
@@ -354,6 +358,7 @@
       <button id="tab-board" class="active">Board</button>
       <button id="tab-diary">Diary</button>
     </div>
+    <span id="alert-banner">⚠ ALERT</span>
   </div>
   <div class="right">
     <button id="btn-returns" title="Pending returns" style="display:none">🔔 <span id="returns-count">0</span></button>
@@ -891,11 +896,47 @@ function playChime(){
   }catch(e){}
 }
 
-/* ---- Attention border (admin alert for new returns / requests) ---- */
+// Low-pitch attention tone — soft two-note, not harsh. Repeats on a timer while pending.
+function playAlertTone(){
+  if(!audioCtx)return;
+  try{
+    const now=audioCtx.currentTime;
+    [330,247].forEach((f,i)=>{             // low, calm two-note (E4-ish → B3-ish)
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='sine';o.frequency.value=f;
+      o.connect(g);g.connect(audioCtx.destination);
+      const t=now+i*0.28;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.28,t+0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.5);
+      o.start(t);o.stop(t+0.52);
+    });
+  }catch(e){}
+}
+
+// Repeat the tone every 5s while there are items to process.
+let alertLoop=null;
+function startAlertLoop(){
+  if(alertLoop)return;                     // already running
+  playAlertTone();                         // sound immediately
+  alertLoop=setInterval(()=>{
+    const pending=((returns&&returns.length)||0)+((requests&&requests.length)||0);
+    if(pending>0 && document.body.classList.contains('admin')){
+      playAlertTone();
+    } else {
+      stopAlertLoop();
+    }
+  },5000);
+}
+function stopAlertLoop(){
+  if(alertLoop){clearInterval(alertLoop);alertLoop=null;}
+}
+
+/* ---- Attention border + ALERT banner (admin alert for new returns / requests) ---- */
 function showAttention(){
   if(!document.body.classList.contains('admin'))return;   // admin screens only
   document.getElementById('attention-border').classList.add('show');
-  playChime();
+  startAlertLoop();
 }
 function clearAttention(){
   document.getElementById('attention-border').classList.remove('show');
@@ -903,7 +944,19 @@ function clearAttention(){
 // The border clears only when there's nothing left to action.
 function refreshAttention(){
   const pending = (returns&&returns.length) || (requests&&requests.length);
-  if(!pending) clearAttention();
+  if(!pending){clearAttention();stopAlertLoop();}
+  syncAlertBanner();
+}
+// Show/hide the big ALERT word in the topbar based on pending items (admin only).
+function syncAlertBanner(){
+  const banner=document.getElementById('alert-banner');
+  if(!banner)return;
+  const pending=((returns&&returns.length)||0)+((requests&&requests.length)||0);
+  const inAdmin=document.body.classList.contains('admin');
+  banner.classList.toggle('show', pending>0 && inAdmin);
+  // keep the audible loop in sync too
+  if(pending>0 && inAdmin){ startAlertLoop(); }
+  else { stopAlertLoop(); }
 }
 
 function notifyNewParts(hole, reg, parts){
@@ -1113,6 +1166,7 @@ function renderRequests(){
   const inAdmin=document.body.classList.contains('admin');
   btn.style.display=inAdmin?'':'none';
   btn.classList.toggle('has',requests.length>0);
+  syncAlertBanner();
   if(!list)return;
   if(!requests.length){list.innerHTML='<div class="empty-note">No part requests.</div>';return;}
   list.innerHTML=requests.map(r=>
@@ -1391,6 +1445,7 @@ function renderReturns(){
   const inAdmin=document.body.classList.contains('admin');
   btn.style.display = inAdmin ? '' : 'none';
   btn.classList.toggle('has', returns.length>0);
+  syncAlertBanner();
   if(!returns.length){
     list.innerHTML='<div class="empty-note">No pending returns.</div>';
     return;
