@@ -222,6 +222,12 @@
   .hole .part.returning .ptext{color:#c07a2b}
   .hole .part .ret-pending{font-size:11px;font-weight:700;letter-spacing:.5px;background:#f4e6d2;color:#c07a2b;
     padding:2px 8px;border-radius:10px;white-space:nowrap}
+  .hole .part .pbtn.undo-ret{border-color:#c07a2b;color:#c07a2b}
+  .hole .part .pbtn.undo-ret:hover{background:#c07a2b;color:#fff}
+  .returns-panel .ritem-btns{display:flex;gap:8px;margin-top:2px}
+  .returns-panel .ritem-btns button{flex:1}
+  .returns-panel .ritem-btns .rcancel{border-color:var(--line-2);color:var(--muted)}
+  .returns-panel .ritem-btns .rcancel:hover{border-color:#c07a2b;color:#c07a2b}
   .hole .part .pcheck{width:20px;height:20px;flex:none;cursor:pointer;accent-color:var(--accent)}
   .hole .part .pbtn{flex:none;font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;
     cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent);font-weight:600}
@@ -296,6 +302,17 @@
     border:1px solid var(--line-2);color:var(--muted);padding:8px 16px;border-radius:20px;
     font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
+  .bin-dialog{max-width:460px}
+  .bin-pop-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+  .bin-pop-head h3{font-size:26px;font-weight:800}
+  .bin-pop-head .sub{margin-top:2px}
+  .bin-pop-head button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+  .bin-pop-head button:hover{color:var(--text)}
+  .bin-pop-body{max-height:70vh;overflow-y:auto}
+  .bin-pop-body .parts{margin-top:4px}
+  .bin-pop-body .part{font-size:17px;padding:4px 0}
+  .bin-pop-body .part .pcheck{width:24px;height:24px}
+  .bin-pop-body .collect-btn,.bin-pop-body .request-btn{font-size:15px;margin-top:10px}
   #attention-border{position:fixed;inset:0;z-index:200;pointer-events:none;display:none;
     border:8px solid #e02424;border-radius:6px;box-shadow:inset 0 0 30px rgba(224,36,36,.55)}
   #attention-border.show{display:block;animation:attnFlash 1s infinite}
@@ -501,6 +518,19 @@
 
 <div id="notif-stack"></div>
 
+<div class="overlay" id="bin-overlay">
+  <div class="dialog bin-dialog">
+    <div class="bin-pop-head">
+      <div>
+        <h3 id="bin-pop-title">Bin</h3>
+        <p class="sub" id="bin-pop-sub"></p>
+      </div>
+      <button id="bin-pop-close">✕</button>
+    </div>
+    <div id="bin-pop-body" class="bin-pop-body"></div>
+  </div>
+</div>
+
 <div id="attention-border" aria-hidden="true"></div>
 
 <div class="overlay" id="booking-overlay">
@@ -604,36 +634,13 @@ function render(){
     el.classList.remove('filled','empty','expanded');
     const parts = (d && Array.isArray(d.parts)) ? d.parts.filter(p=>p&&p.desc) : [];
     const hasContent = d && (d.reg||d.make||d.model||parts.length);
-    const isExpanded = (expandedHole===id);
     if(hasContent){
       el.classList.add('filled');
-      if(isExpanded) el.classList.add('expanded');
       if(newPartBins[id]) el.classList.add('hasnew');
       const big = d.reg || [d.make,d.model].filter(Boolean).join(' ') || '—';
       const small = d.reg ? [d.make,d.model].filter(Boolean).join(' ') : '';
       let body='';
-      if(parts.length && isExpanded){
-        const rows = parts.map((p,i)=>{
-          const collected = p.status==='collected';
-          const returning = p.status==='returning';
-          const check = (collected||returning) ? '' :
-            '<input type="checkbox" class="pcheck" data-hole="'+id+'" data-i="'+i+'"'+(p.checked?' checked':'')+'>';
-          const ret = (collected && !returning) ?
-            '<button class="pbtn ret" data-hole="'+id+'" data-i="'+i+'">Return</button>' : '';
-          const pendLabel = returning ? '<span class="ret-pending">Return pending</span>' : '';
-          return '<div class="part'+(collected||returning?' done':'')+(returning?' returning':'')+'">'+check+
-            '<span class="ptext"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</span>'+
-            pendLabel+ret+'</div>';
-        }).join('');
-        const anyUncollected = parts.some(p=>p.status!=='collected'&&p.status!=='returning');
-        const uncollected = parts.filter(p=>p.status!=='collected'&&p.status!=='returning');
-        const allTicked = uncollected.length>0 && uncollected.every(p=>p.checked);
-        const selectAll = uncollected.length>1 ?
-          '<label class="select-all"><input type="checkbox" class="pcheckall" data-hole="'+id+'"'+(allTicked?' checked':'')+'> Select all</label>' : '';
-        const collectBtn = anyUncollected ?
-          '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
-        body='<div class="parts">'+selectAll+rows+collectBtn+'</div>';
-      } else if(parts.length){
+      if(parts.length){
         // collapsed: total quantity, not number of part types
         const sumQty=arr=>arr.reduce((t,p)=>t+(parseInt(p.qty)||1),0);
         const total=sumQty(parts);
@@ -651,37 +658,90 @@ function render(){
         }
         body='<div class="parts-count">'+label+' ›</div>';
       }
-      const reqBtn = isExpanded ? '<button class="request-btn" data-hole="'+id+'">Request a part</button>' : '';
       el.innerHTML='<span class="tag">'+holeLabel(id)+'</span>'+
         (newPartBins[id]?'<span class="newdot" title="New parts added">NEW</span>':'')+
         '<div class="reg">'+esc(big)+'</div>'+
         (small?'<div class="mm">'+esc(small)+'</div>':'')+
-        body+reqBtn+
+        body+
         '<span class="edit-hint">Tap reg to edit</span>';
     } else {
       el.classList.add('empty');
-      if(isExpanded) el.classList.add('expanded');
-      const reqBtn = isExpanded ? '<button class="request-btn" data-hole="'+id+'">Request a part</button>' : '';
       el.innerHTML='<span class="tag">'+holeLabel(id)+'</span><div class="reg">Empty</div>'+
-        reqBtn+
         '<span class="edit-hint">Tap to fill</span>';
     }
   });
-  wireCellControls();
+  // if the popup is open, refresh its contents too
+  if(binPopHole!==null) renderBinPopBody();
 }
 
-function collapseExpanded(){
-  if(expandTimer){clearTimeout(expandTimer);expandTimer=null;}
-  if(expandedHole!==null){expandedHole=null;render();}
-}
-function expandHole(id){
+// Build the interactive parts body (checkboxes, collect, return/undo, request) for a bin popup.
+function buildBinPopBody(id){
   const d=state[id];
-  if(newPartBins[id]){delete newPartBins[id];}   // tech has seen it
-  if(expandedHole===id){collapseExpanded();return;}  // tap again = collapse
-  expandedHole=id;render();
-  if(expandTimer)clearTimeout(expandTimer);
-  expandTimer=setTimeout(collapseExpanded,60000);   // auto-collapse after 60s
+  const parts=(d && Array.isArray(d.parts)) ? d.parts.filter(p=>p&&p.desc) : [];
+  let body='';
+  if(parts.length){
+    const rows = parts.map((p,i)=>{
+      const collected = p.status==='collected';
+      const returning = p.status==='returning';
+      const check = (collected||returning) ? '' :
+        '<input type="checkbox" class="pcheck" data-hole="'+id+'" data-i="'+i+'"'+(p.checked?' checked':'')+'>';
+      const ret = (collected && !returning) ?
+        '<button class="pbtn ret" data-hole="'+id+'" data-i="'+i+'">Return</button>' : '';
+      const pendLabel = returning ? '<span class="ret-pending">Return pending</span>' : '';
+      const undoBtn = returning ?
+        '<button class="pbtn undo-ret" data-hole="'+id+'" data-i="'+i+'">Undo</button>' : '';
+      return '<div class="part'+(collected||returning?' done':'')+(returning?' returning':'')+'">'+check+
+        '<span class="ptext"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</span>'+
+        pendLabel+undoBtn+ret+'</div>';
+    }).join('');
+    const anyUncollected = parts.some(p=>p.status!=='collected'&&p.status!=='returning');
+    const uncollected = parts.filter(p=>p.status!=='collected'&&p.status!=='returning');
+    const allTicked = uncollected.length>0 && uncollected.every(p=>p.checked);
+    const selectAll = uncollected.length>1 ?
+      '<label class="select-all"><input type="checkbox" class="pcheckall" data-hole="'+id+'"'+(allTicked?' checked':'')+'> Select all</label>' : '';
+    const collectBtn = anyUncollected ?
+      '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
+    body='<div class="parts">'+selectAll+rows+collectBtn+'</div>';
+  } else {
+    body='<div class="parts-count" style="cursor:default">No parts in this bin</div>';
+  }
+  return body+'<button class="request-btn" data-hole="'+id+'">Request a part</button>';
 }
+
+let binPopHole=null;
+let binPopTimer=null;
+function renderBinPopBody(){
+  if(binPopHole===null)return;
+  const d=state[binPopHole]||{};
+  const big=d.reg||[d.make,d.model].filter(Boolean).join(' ')||'—';
+  const small=d.reg?[d.make,d.model].filter(Boolean).join(' '):'';
+  document.getElementById('bin-pop-title').textContent='Bin '+holeLabel(binPopHole);
+  document.getElementById('bin-pop-sub').textContent=[big,small].filter(Boolean).join(' · ');
+  document.getElementById('bin-pop-body').innerHTML=buildBinPopBody(binPopHole);
+  wireCellControls();
+}
+function openBinPop(id){
+  if(newPartBins[id]){delete newPartBins[id];render();}
+  binPopHole=id;
+  renderBinPopBody();
+  document.getElementById('bin-overlay').classList.add('show');
+  resetBinPopTimer();
+}
+function closeBinPop(){
+  binPopHole=null;
+  document.getElementById('bin-overlay').classList.remove('show');
+  if(binPopTimer){clearTimeout(binPopTimer);binPopTimer=null;}
+}
+function resetBinPopTimer(){
+  if(binPopTimer)clearTimeout(binPopTimer);
+  binPopTimer=setTimeout(closeBinPop,60000);   // auto-close after 1 min inactivity
+}
+document.getElementById('bin-pop-close').onclick=closeBinPop;
+document.getElementById('bin-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('bin-overlay'))closeBinPop();
+});
+// any interaction inside the popup resets the inactivity timer
+document.getElementById('bin-overlay').addEventListener('pointerdown',()=>{ if(binPopHole!==null)resetBinPopTimer(); });
 
 let toastTimer;
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');
@@ -740,7 +800,7 @@ holeEls.forEach(el=>el.addEventListener('click',e=>{
   if(document.body.classList.contains('admin')){
     openHole(el.dataset.hole);
   } else {
-    expandHole(el.dataset.hole);
+    openBinPop(el.dataset.hole);
   }
 }));
 
@@ -782,6 +842,17 @@ function wireCellControls(){
     const nm=(part.qty||1)+'× '+part.desc;
     await logActivity(hole, d.reg, 'Return requested', nm);
     showConfirm('Return requested', '', [nm], hole, d.reg);
+  });
+  document.querySelectorAll('.pbtn.undo-ret').forEach(btn=>btn.onclick=async()=>{
+    const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
+    const d=state[hole]; if(!d||!d.parts[i])return;
+    const part=d.parts[i];
+    part.status='collected'; part.checked=false;   // back to how it was
+    render();
+    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+    await cancelReturnRecord(hole, part.desc, part.qty);
+    await logActivity(hole, d.reg, 'Return cancelled', (part.qty||1)+'× '+part.desc);
+    toast('Return cancelled');
   });
   document.querySelectorAll('.request-btn').forEach(btn=>btn.onclick=(e)=>{
     e.stopPropagation();
@@ -1428,6 +1499,25 @@ async function requestReturn(hole, reg, part){
   }catch(e){console.error(e);toast('Return failed');}
 }
 
+// Remove the pending return record for a part (used when a return is cancelled/undone).
+async function cancelReturnRecord(hole, desc, qty){
+  if(!sb)return;
+  // find the matching pending return locally to get its id
+  let rec=returns.find(r=>r.hole===hole && r.part_desc===desc && (r.qty||1)===(qty||1));
+  if(!rec)rec=returns.find(r=>r.hole===hole && r.part_desc===desc);
+  try{
+    if(rec){
+      await sb.from('returns').delete().eq('id',rec.id);
+      returns=returns.filter(r=>r.id!==rec.id);
+    } else {
+      // fallback: delete by match if local copy missing
+      await sb.from('returns').delete().eq('hole',hole).eq('part_desc',desc);
+    }
+    renderReturns();
+    refreshAttention();
+  }catch(e){console.error(e);}
+}
+
 /* ---- Flashing browser tab title when returns are waiting ---- */
 const BASE_TITLE='Parts Location Board';
 let titleFlashTimer=null, titleFlipState=false;
@@ -1468,11 +1558,40 @@ function renderReturns(){
     '<div class="ritem"><div class="rt"><b>'+esc(String(r.qty||1))+'×</b> '+esc(r.part_desc)+'</div>'+
     '<div class="rmeta">Bin '+esc(holeLabel(r.hole))+(r.reg?' · '+esc(r.reg):'')+
       ' · '+new Date(r.created_at).toLocaleString()+'</div>'+
-    '<button data-id="'+r.id+'">Mark processed</button></div>'
+    '<div class="ritem-btns"><button class="rcancel" data-cancel="'+r.id+'">Cancel</button>'+
+    '<button data-id="'+r.id+'">Mark processed</button></div></div>'
   ).join('');
   list.querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{
     await clearReturn(b.dataset.id);
   });
+  list.querySelectorAll('button[data-cancel]').forEach(b=>b.onclick=async()=>{
+    await cancelReturn(b.dataset.cancel);
+  });
+}
+
+// Admin cancels a pending return: part goes back to collected, record removed.
+async function cancelReturn(rid){
+  if(!sb)return;
+  const r=returns.find(x=>x.id===rid);
+  try{
+    await sb.from('returns').delete().eq('id',rid);
+    returns=returns.filter(x=>x.id!==rid);
+    renderReturns();
+    refreshAttention();
+    if(r && r.hole && state[r.hole]){
+      const d=state[r.hole];
+      const parts=Array.isArray(d.parts)?d.parts:[];
+      let idx=parts.findIndex(p=>p.status==='returning' && p.desc===r.part_desc && (p.qty||1)===(r.qty||1));
+      if(idx<0)idx=parts.findIndex(p=>p.status==='returning' && p.desc===r.part_desc);
+      if(idx>=0){
+        parts[idx].status='collected'; parts[idx].checked=false;
+        render();
+        await persist(r.hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+      }
+    }
+    if(r)await logActivity(r.hole, r.reg, 'Return cancelled', (r.qty||1)+'× '+r.part_desc);
+    toast('Return cancelled');
+  }catch(e){console.error(e);toast('Could not cancel');}
 }
 
 async function clearReturn(rid){
