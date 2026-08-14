@@ -302,17 +302,46 @@
     border:1px solid var(--line-2);color:var(--muted);padding:8px 16px;border-radius:20px;
     font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
-  .bin-dialog{max-width:460px}
-  .bin-pop-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
-  .bin-pop-head h3{font-size:26px;font-weight:800}
-  .bin-pop-head .sub{margin-top:2px}
-  .bin-pop-head button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+  .bin-dialog{max-width:440px}
+  .bin-pop-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+    margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .bin-pop-head h3{font-size:26px;font-weight:800;line-height:1}
+  .bin-pop-head .sub{margin-top:4px;color:var(--muted)}
+  .bin-pop-head button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:2px}
   .bin-pop-head button:hover{color:var(--text)}
-  .bin-pop-body{max-height:70vh;overflow-y:auto}
-  .bin-pop-body .parts{margin-top:4px}
-  .bin-pop-body .part{font-size:17px;padding:4px 0}
-  .bin-pop-body .part .pcheck{width:24px;height:24px}
-  .bin-pop-body .collect-btn,.bin-pop-body .request-btn{font-size:15px;margin-top:10px}
+  .bin-pop-body{max-height:66vh;overflow-y:auto;margin:0 -4px;padding:0 4px}
+  .binsec{margin-bottom:16px}
+  .binsec-h{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);
+    margin-bottom:8px}
+  .binrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:7px;font-size:16px;background:var(--panel)}
+  .binrow .binrow-txt{flex:1;line-height:1.3}
+  .binrow .q{color:var(--accent);font-weight:700}
+  .binrow .pcheck{width:22px;height:22px;flex:none;accent-color:var(--accent);cursor:pointer}
+  label.binrow{cursor:pointer}
+  label.binrow:hover{border-color:var(--accent)}
+  .binrow.done{background:var(--bg)}
+  .binrow.done .binrow-txt{text-decoration:line-through;color:var(--muted)}
+  .binrow.returning{background:#fbf4ec}
+  .binrow.returning .binrow-txt{color:#c07a2b;text-decoration:line-through}
+  .binrow .pbtn{flex:none;font:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;
+    border:1px solid var(--accent);background:transparent;color:var(--accent)}
+  .binrow .pbtn:hover{background:var(--accent);color:#fff}
+  .binrow .pbtn.undo-ret{border-color:#c07a2b;color:#c07a2b}
+  .binrow .pbtn.undo-ret:hover{background:#c07a2b;color:#fff}
+  .binrow .ret-pending{flex:none;font-size:11px;font-weight:700;letter-spacing:.5px;background:#f4e6d2;color:#c07a2b;
+    padding:3px 9px;border-radius:10px;white-space:nowrap}
+  .bin-pop-body .select-all{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;
+    color:var(--muted);padding:6px 11px;margin-bottom:8px;cursor:pointer}
+  .bin-pop-body .select-all input{width:22px;height:22px;accent-color:var(--accent);cursor:pointer}
+  .bin-pop-body .collect-btn{width:100%;font:inherit;font-size:15px;font-weight:600;padding:11px;border-radius:9px;
+    cursor:pointer;border:none;background:var(--accent);color:#fff;margin-top:4px}
+  .bin-pop-body .collect-btn:hover{filter:brightness(1.08)}
+  .binpop-actions{margin-top:4px;padding-top:14px;border-top:1px solid var(--line)}
+  .bin-pop-body .request-btn{width:100%;font:inherit;font-size:15px;font-weight:600;padding:11px;border-radius:9px;
+    cursor:pointer;border:1px solid var(--line-2);background:transparent;color:var(--text)}
+  .bin-pop-body .request-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .binpop-empty{color:var(--muted);font-size:15px;text-align:center;padding:20px 0}
   #attention-border{position:fixed;inset:0;z-index:200;pointer-events:none;display:none;
     border:8px solid #e02424;border-radius:6px;box-shadow:inset 0 0 30px rgba(224,36,36,.55)}
   #attention-border.show{display:block;animation:attnFlash 1s infinite}
@@ -678,34 +707,52 @@ function render(){
 function buildBinPopBody(id){
   const d=state[id];
   const parts=(d && Array.isArray(d.parts)) ? d.parts.filter(p=>p&&p.desc) : [];
-  let body='';
-  if(parts.length){
-    const rows = parts.map((p,i)=>{
-      const collected = p.status==='collected';
-      const returning = p.status==='returning';
-      const check = (collected||returning) ? '' :
-        '<input type="checkbox" class="pcheck" data-hole="'+id+'" data-i="'+i+'"'+(p.checked?' checked':'')+'>';
-      const ret = (collected && !returning) ?
-        '<button class="pbtn ret" data-hole="'+id+'" data-i="'+i+'">Return</button>' : '';
-      const pendLabel = returning ? '<span class="ret-pending">Return pending</span>' : '';
-      const undoBtn = returning ?
-        '<button class="pbtn undo-ret" data-hole="'+id+'" data-i="'+i+'">Undo</button>' : '';
-      return '<div class="part'+(collected||returning?' done':'')+(returning?' returning':'')+'">'+check+
-        '<span class="ptext"><span class="q">'+esc(String(p.qty||1))+'×</span> '+esc(p.desc)+'</span>'+
-        pendLabel+undoBtn+ret+'</div>';
-    }).join('');
-    const anyUncollected = parts.some(p=>p.status!=='collected'&&p.status!=='returning');
-    const uncollected = parts.filter(p=>p.status!=='collected'&&p.status!=='returning');
-    const allTicked = uncollected.length>0 && uncollected.every(p=>p.checked);
-    const selectAll = uncollected.length>1 ?
-      '<label class="select-all"><input type="checkbox" class="pcheckall" data-hole="'+id+'"'+(allTicked?' checked':'')+'> Select all</label>' : '';
-    const collectBtn = anyUncollected ?
-      '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button>' : '';
-    body='<div class="parts">'+selectAll+rows+collectBtn+'</div>';
-  } else {
-    body='<div class="parts-count" style="cursor:default">No parts in this bin</div>';
+  if(!parts.length){
+    return '<div class="binpop-empty">No parts in this bin.</div>'+
+      '<div class="binpop-actions"><button class="request-btn" data-hole="'+id+'">Request a part</button></div>';
   }
-  return body+'<button class="request-btn" data-hole="'+id+'">Request a part</button>';
+  // keep original indices so controls target the right part
+  const withIdx=parts.map((p,i)=>({p,i}));
+  const onShelf=withIdx.filter(x=>x.p.status!=='collected'&&x.p.status!=='returning');
+  const collected=withIdx.filter(x=>x.p.status==='collected');
+  const returning=withIdx.filter(x=>x.p.status==='returning');
+
+  const qtyTag=p=>'<span class="q">'+esc(String(p.qty||1))+'×</span>';
+  let out='';
+
+  // ON SHELF — checkboxes + collect
+  if(onShelf.length){
+    const allTicked=onShelf.every(x=>x.p.checked);
+    const selectAll=onShelf.length>1?
+      '<label class="select-all"><input type="checkbox" class="pcheckall" data-hole="'+id+'"'+(allTicked?' checked':'')+'><span>Select all</span></label>':'';
+    const rows=onShelf.map(({p,i})=>
+      '<label class="binrow"><input type="checkbox" class="pcheck" data-hole="'+id+'" data-i="'+i+'"'+(p.checked?' checked':'')+'>'+
+      '<span class="binrow-txt">'+qtyTag(p)+' '+esc(p.desc)+'</span></label>'
+    ).join('');
+    out+='<div class="binsec">'+
+      '<div class="binsec-h">On shelf</div>'+selectAll+rows+
+      '<button class="collect-btn" data-hole="'+id+'">Collect ticked</button></div>';
+  }
+  // COLLECTED — struck through + Return
+  if(collected.length){
+    const rows=collected.map(({p,i})=>
+      '<div class="binrow done"><span class="binrow-txt">'+qtyTag(p)+' '+esc(p.desc)+'</span>'+
+      '<button class="pbtn ret" data-hole="'+id+'" data-i="'+i+'">Return</button></div>'
+    ).join('');
+    out+='<div class="binsec"><div class="binsec-h">Collected</div>'+rows+'</div>';
+  }
+  // RETURNING — pending admin, with undo
+  if(returning.length){
+    const rows=returning.map(({p,i})=>
+      '<div class="binrow returning"><span class="binrow-txt">'+qtyTag(p)+' '+esc(p.desc)+'</span>'+
+      '<span class="ret-pending">Return pending</span>'+
+      '<button class="pbtn undo-ret" data-hole="'+id+'" data-i="'+i+'">Undo</button></div>'
+    ).join('');
+    out+='<div class="binsec"><div class="binsec-h">Awaiting return</div>'+rows+'</div>';
+  }
+
+  out+='<div class="binpop-actions"><button class="request-btn" data-hole="'+id+'">Request a part</button></div>';
+  return out;
 }
 
 let binPopHole=null;
@@ -812,11 +859,11 @@ function wireCellControls(){
     d.parts[i].checked=cb.checked;  // local only, no save needed yet
     // keep the select-all box in sync
     const allBox=document.querySelector('.pcheckall[data-hole="'+CSS.escape(hole)+'"]');
-    if(allBox){const unc=d.parts.filter(p=>p.status!=='collected');allBox.checked=unc.length>0&&unc.every(p=>p.checked);}
+    if(allBox){const unc=d.parts.filter(p=>p.status!=='collected'&&p.status!=='returning');allBox.checked=unc.length>0&&unc.every(p=>p.checked);}
   });
   document.querySelectorAll('.pcheckall').forEach(cb=>cb.onchange=()=>{
     const hole=cb.dataset.hole; const d=state[hole]; if(!d)return;
-    d.parts.forEach(p=>{ if(p.status!=='collected')p.checked=cb.checked; });
+    d.parts.forEach(p=>{ if(p.status!=='collected'&&p.status!=='returning')p.checked=cb.checked; });
     // update the individual checkboxes in place without full re-render
     document.querySelectorAll('.pcheck[data-hole="'+CSS.escape(hole)+'"]').forEach(box=>{box.checked=cb.checked;});
   });
