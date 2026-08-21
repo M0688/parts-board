@@ -903,7 +903,7 @@ function wireCellControls(){
     render();
     await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
     await logActivity(hole, d.reg, 'Collected', names.join(', '));
-    showConfirm('Parts collected', '', names, hole, d.reg);
+    toast(names.length+(names.length===1?' part':' parts')+' collected');
   });
   document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=()=>{
     const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
@@ -1595,7 +1595,7 @@ document.querySelectorAll('.reason-opt').forEach(btn=>btn.onclick=async()=>{
   await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
   const nm=(part.qty||1)+'× '+part.desc;
   await logActivity(hole, d.reg, 'Return requested', nm+' — '+reason);
-  showConfirm('Return requested', '', [nm+' ('+reason+')'], hole, d.reg);
+  toast('Return requested');
 });
 
 // Remove the pending return record for a part (used when a return is cancelled/undone).
