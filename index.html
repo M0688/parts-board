@@ -303,6 +303,15 @@
     font-size:13px;opacity:0;transition:.2s;pointer-events:none}
   .toast.show{opacity:1}
   .bin-dialog{max-width:440px}
+  .reason-dialog{max-width:380px}
+  .reason-dialog h3{font-size:20px}
+  .reason-dialog .sub{margin-top:4px;color:var(--muted)}
+  .reason-list{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+  .reason-opt{font:inherit;font-size:16px;font-weight:600;text-align:left;padding:13px 15px;border-radius:10px;
+    cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--text);transition:.12s}
+  .reason-opt:hover{border-color:var(--accent);background:var(--panel-2);color:var(--accent)}
+  .rreason{font-size:11px;font-weight:700;letter-spacing:.3px;background:#f4e6d2;color:#c07a2b;
+    padding:2px 8px;border-radius:10px;white-space:nowrap;margin-left:6px}
   .bin-pop-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
     margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
   .bin-pop-head h3{font-size:26px;font-weight:800;line-height:1}
@@ -546,6 +555,23 @@
 <div class="toast" id="toast"></div>
 
 <div id="notif-stack"></div>
+
+<div class="overlay" id="reason-overlay">
+  <div class="dialog reason-dialog">
+    <h3>Why is this being returned?</h3>
+    <p class="sub" id="reason-sub"></p>
+    <div class="reason-list">
+      <button class="reason-opt" data-reason="No Longer Needed">No Longer Needed</button>
+      <button class="reason-opt" data-reason="Incorrect Part">Incorrect Part</button>
+      <button class="reason-opt" data-reason="Faulty">Faulty</button>
+      <button class="reason-opt" data-reason="Surcharge Item">Surcharge Item</button>
+      <button class="reason-opt" data-reason="Incomplete">Incomplete</button>
+    </div>
+    <div class="actions">
+      <button class="cancel" id="reason-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="bin-overlay">
   <div class="dialog bin-dialog">
@@ -878,17 +904,10 @@ function wireCellControls(){
     await logActivity(hole, d.reg, 'Collected', names.join(', '));
     showConfirm('Parts collected', '', names, hole, d.reg);
   });
-  document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=async()=>{
+  document.querySelectorAll('.pbtn.ret').forEach(btn=>btn.onclick=()=>{
     const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
     const d=state[hole]; if(!d||!d.parts[i])return;
-    const part=d.parts[i];
-    await requestReturn(hole, d.reg, part);
-    part.status='returning'; part.checked=false;   // awaiting admin processing
-    render();
-    await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
-    const nm=(part.qty||1)+'× '+part.desc;
-    await logActivity(hole, d.reg, 'Return requested', nm);
-    showConfirm('Return requested', '', [nm], hole, d.reg);
+    openReasonPicker(hole, i);
   });
   document.querySelectorAll('.pbtn.undo-ret').forEach(btn=>btn.onclick=async()=>{
     const hole=btn.dataset.hole, i=parseInt(btn.dataset.i);
@@ -1536,15 +1555,47 @@ async function logActivity(hole, reg, action, detail){
   }catch(e){console.error('log error',e);}
 }
 
-async function requestReturn(hole, reg, part){
+async function requestReturn(hole, reg, part, reason){
   if(!sb)return;
   try{
     const { error } = await sb.from('returns').insert({
-      hole, reg:reg||'', part_desc:part.desc, qty:part.qty||1
+      hole, reg:reg||'', part_desc:part.desc, qty:part.qty||1, reason:reason||null
     });
     if(error)throw error;
   }catch(e){console.error(e);toast('Return failed');}
 }
+
+/* ---- Return reason picker ---- */
+let reasonTarget=null;   // {hole, i}
+function openReasonPicker(hole, i){
+  reasonTarget={hole,i};
+  const d=state[hole]; const part=d&&d.parts[i];
+  document.getElementById('reason-sub').textContent=part?((part.qty||1)+'× '+part.desc):'';
+  document.getElementById('reason-overlay').classList.add('show');
+}
+function closeReasonPicker(){
+  document.getElementById('reason-overlay').classList.remove('show');
+  reasonTarget=null;
+}
+document.getElementById('reason-cancel').onclick=closeReasonPicker;
+document.getElementById('reason-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('reason-overlay'))closeReasonPicker();
+});
+document.querySelectorAll('.reason-opt').forEach(btn=>btn.onclick=async()=>{
+  if(!reasonTarget)return;
+  const {hole,i}=reasonTarget;
+  const reason=btn.dataset.reason;
+  const d=state[hole]; if(!d||!d.parts[i]){closeReasonPicker();return;}
+  const part=d.parts[i];
+  closeReasonPicker();
+  await requestReturn(hole, d.reg, part, reason);
+  part.status='returning'; part.checked=false;
+  render();
+  await persist(hole, {reg:d.reg,make:d.make,model:d.model,parts:d.parts});
+  const nm=(part.qty||1)+'× '+part.desc;
+  await logActivity(hole, d.reg, 'Return requested', nm+' — '+reason);
+  showConfirm('Return requested', '', [nm+' ('+reason+')'], hole, d.reg);
+});
 
 // Remove the pending return record for a part (used when a return is cancelled/undone).
 async function cancelReturnRecord(hole, desc, qty){
@@ -1602,7 +1653,8 @@ function renderReturns(){
     return;
   }
   list.innerHTML=returns.map(r=>
-    '<div class="ritem"><div class="rt"><b>'+esc(String(r.qty||1))+'×</b> '+esc(r.part_desc)+'</div>'+
+    '<div class="ritem"><div class="rt"><b>'+esc(String(r.qty||1))+'×</b> '+esc(r.part_desc)+
+    (r.reason?' <span class="rreason">'+esc(r.reason)+'</span>':'')+'</div>'+
     '<div class="rmeta">Bin '+esc(holeLabel(r.hole))+(r.reg?' · '+esc(r.reg):'')+
       ' · '+new Date(r.created_at).toLocaleString()+'</div>'+
     '<div class="ritem-btns"><button class="rcancel" data-cancel="'+r.id+'">Cancel</button>'+
